@@ -22,6 +22,15 @@ Install the Tools
 -----------------
 
 The [`install.sh`](install.sh) script will install the tools for you.
+
+Install deno first, and set up the correct environment variables for it.
+
+Then set up a python virtual environment
+
+```
+python3 -m venv venv # On ubuntu it is like this
+source venv/bin/activate
+```
 Read it first to see what it does, then run it:
 
     $ ./install.sh
