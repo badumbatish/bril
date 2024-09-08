@@ -1,7 +1,7 @@
 import json
 import sys
 
-from src.utils import cfg
+from utils import cfg
 
 
 def should_keep(instr):
@@ -13,6 +13,7 @@ def should_keep(instr):
 
 if __name__ == "__main__":
     prog = json.load(sys.stdin)
+    cfg.hello()
     for fn in prog["functions"]:
         fn["instrs"] = [instr for instr in fn["instrs"] if should_keep(instr)]
     json.dump(prog, sys.stdout, indent=2)
