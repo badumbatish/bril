@@ -8,12 +8,16 @@ def remove_dead_code(function):
     used = set()
 
     for instruction in function["instrs"]:
-        if 
-        used |= instruction["args"]
-    
+        if "args" in instruction:
+            for arg in instruction["args"]:
+                used.add(arg)
+    print(used)
     for instruction in function["instrs"]:
-        if instruction["dest"] not in used:
-            del instruction
+        print(instruction)
+        if "dest" in instruction and instruction["dest"] not in used:
+            print instruction["dest"]
+            if "op" not in instruction or instruction["op"] != "call":
+                del instruction
 
 if __name__ == "__main__":
     prog = json.load(sys.stdin)
@@ -21,4 +25,4 @@ if __name__ == "__main__":
     for function in prog["functions"]:
         remove_dead_code(function)
     
-    json.dump(prog, sys.stdout, indent=2)
+    #json.dump(prog, sys.stdout, indent=2)
