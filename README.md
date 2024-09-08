@@ -63,6 +63,10 @@ Then run all the tests by typing `make test`.
 Check out [examples/remove_nops](examples/remove_nops) for a simple, complete example of how to write an optimization pass for Bril.
 
 For our group, all passes are organized into passes/ in src/
+
+After you've activate your enviroment, run `pip install -e .` for python to recognize the pathing of packages.
+
+Then you can proceed
 ## Testing our group's optimizer
 
 cd into src/
