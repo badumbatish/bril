@@ -1,7 +1,7 @@
 Bril: A Compiler Intermediate Representation for Learning
 =========================================================
 
-> This Max's fork of the Bril repo for teaching Berkeley's [CS 265](https://github.com/mwillsey/cs265).
+> This Sriram, Jasmine, and Lance's fork of Max's fork of the Bril repo for teaching Berkeley's [CS 265](https://github.com/mwillsey/cs265).
 > Links will likely still point to the published [Bril docs](https://capra.cs.cornell.edu/bril/).
 > I will try to keep this compatible with the original Bril repo, so those docs should still be useful.
 
