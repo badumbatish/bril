@@ -61,3 +61,11 @@ Then run all the tests by typing `make test`.
 ## Write an optimizer!
 
 Check out [examples/remove_nops](examples/remove_nops) for a simple, complete example of how to write an optimization pass for Bril.
+
+For our group, all passes are organized into passes/ in src/
+## Testing our group's optimizer
+
+cd into src/
+
+Run 
+brench brench.toml
