@@ -1,6 +1,7 @@
-
 import json
 import sys
+
+from src.utils import cfg
 
 
 def should_keep(instr):
