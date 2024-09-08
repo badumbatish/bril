@@ -1,6 +1,6 @@
 
 # which benchmarks to run
-benchmarks = '../benchmarks/**/*.bril'
+benchmarks = '../examples/test/**/*.bril'
 # how to extract the performance metric from stderr
 extract = 'total_dyn_inst: (\d+)'
 
@@ -20,8 +20,8 @@ pipeline = [
 [runs.task_1]
 pipeline = [
   "bril2json",
-  "python3 passes/remove_nops.py",
   "python3 passes/local_value_number.py",
+  "python3 passes/remove_nops.py",
   "brili -p {args}",
 ]
 
