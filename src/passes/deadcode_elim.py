@@ -26,21 +26,7 @@ def remove_dead_code(function):
     
     return popped
 
-# Local DCE pseudocode from lecture
-# unused: {var: inst} = {}
-# for inst in block:
-#     # if it's used, it's not unused
-#     for use in inst.uses:
-#         del unused[use]
-#     if inst.dest 
-#         # if this inst defines something
-#         # we can kill the unused definition
-#         if unused[inst.dest]:
-#             remove unused[inst.dest]
-#         # mark this def as unused for now
-#         unused[inst.dest] = inst
-
-def remove_dead_code_block(block):
+def remove_dead_code_block(function, block):
     popped = 0
     unused_fornow = {}
 
@@ -53,26 +39,34 @@ def remove_dead_code_block(block):
             if inst["dest"] in unused_fornow:
                 # if instruction defines something that hasn't been
                 # used since its last def, remove the last def
-                block["instrs"].pop(unused_fornow[inst["dest"]])
+                function["instrs"].remove(unused_fornow[inst["dest"]])
                 popped += 1
             # mark this def as unused (at least for now)
             unused_fornow[inst["dest"]] = inst
 
+    return popped
+
+def trivial_dce_pass(prog):
+    popped = 0
+    for fn in prog["functions"]:
+        popped += remove_dead_code(fn)
+    return popped
+
+def local_dce_pass(prog):
+    popped = 0
+    for fn in prog["functions"]:
+        for block in cfg.make_basic_blocks(fn):
+            popped += remove_dead_code_block(fn, block)
     return popped
             
 
 if __name__ == "__main__":
     prog = json.load(sys.stdin)
 
-    # basic blockwise local DCE
-    for function in prog["functions"]:
-        for block in cfg.make_basic_blocks(function):
-            while remove_dead_code_block(block):
-                pass
-    
-    # trivial DCE
-    for function in prog["functions"]:
-        while remove_dead_code(function):
-            pass
+    # trivial_dce_pass = lambda x: 0 # skip trivial dce
+    # local_dce_pass = lambda x: 0 # skip local dce
 
+    while local_dce_pass(prog) + trivial_dce_pass(prog) > 0:
+        pass
+    
     json.dump(prog, sys.stdout, indent=2)
