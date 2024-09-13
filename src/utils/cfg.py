@@ -1,3 +1,4 @@
+from functools import reduce
 import sys
 from copy import deepcopy
 branch_instructions = ["jmp", "br", "call", "ret"]
@@ -164,6 +165,80 @@ class LVNTable():
 
     def eprint(self):
         print(f"{self}", file=sys.stderr)
+
+
+class const_fold(LVNTable):
+
+    def __init__(self):
+        super().__init__()
+
+    def __transform_from_instrinsic_instruction__(self, instruction):
+        # print(f"before transforming from instrinsics:\n {
+        #       instruction", file=sys.stderr)
+        stop = False
+        if not stop and "dest" in instruction:
+            # common sub expression
+
+            arg_values = []
+            if "args" in instruction:
+                for arg in instruction["args"]:
+                    arg_value = self.__is_arg_const(
+                        arg, instruction["type"] if "type" in instruction else None)
+                    if arg_value is not None:
+                        arg_values.append(arg_value)
+                potential_candidate = ["add", "sub", "mul", "div"]
+                if len(arg_values) == len(instruction["args"]) and (instruction["op"] in potential_candidate):
+                    if instruction["op"] == "add":
+                        instruction["value"] = reduce(
+                            lambda x, y: x + y, arg_values)
+                        del instruction["args"]
+                        instruction["op"] = "const"
+                    if instruction["op"] == "sub":
+                        instruction["value"] = reduce(
+                            lambda x, y: x - y, arg_values)
+                        del instruction["args"]
+                        instruction["op"] = "const"
+
+                    if instruction["op"] == "mul":
+                        instruction["value"] = reduce(
+                            lambda x, y: x * y, arg_values)
+                        del instruction["args"]
+                        instruction["op"] = "const"
+
+                    if instruction["op"] == "div":
+                        instruction["value"] = reduce(
+                            lambda x, y: x / y, arg_values)
+                        del instruction["args"]
+                        instruction["op"] = "const"
+                    stop = True
+            # exhaustive: we just replace id, incurring 1 computation or more
+            if not stop:
+                if "args" in instruction:
+                    instruction["args"] = [self.__query_id_to_symbol__(id)
+                                           if isinstance(id, self.ID)
+                                           else id for id in instruction["args"]]
+        # if not stop and "args" in instruction:
+        #
+        #     instruction["args"] = [self.inner_table[arg.counter][1][0]
+        #                            if isinstance(arg, self.ID) and self.inner_table[arg.counter][1][0] != arg else arg
+        #                            for arg in instruction["args"]
+        #                            ]
+        #     stop = True
+
+        # print(f"after transforming from instrinsics:\n {
+        #       instruction}", file=sys.stderr)
+        return instruction
+
+    def __is_arg_const(self, arg, type="int"):
+        # print(arg, file=sys.stderr)
+        for row in reversed(self.inner_table):
+            if arg == row[0] and "op" in row[2] and "const" in row[2]["op"]:
+                if type == "int":
+                    return int(row[2]["value"])
+                elif type == "float":
+                    return float(row[2]["value"])
+
+        return None
 
 
 def hello_world():
