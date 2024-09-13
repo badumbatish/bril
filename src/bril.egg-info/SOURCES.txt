@@ -1,7 +1,0 @@
-setup.py
-bril.egg-info/PKG-INFO
-bril.egg-info/SOURCES.txt
-bril.egg-info/dependency_links.txt
-bril.egg-info/top_level.txt
-utils/__init__.py
-utils/cfg.py

@@ -4,6 +4,22 @@ from copy import deepcopy
 branch_instructions = ["jmp", "br", "call", "ret"]
 
 
+def make_basic_blocks(function):
+    curr_block = []
+    for inst in function["instrs"]:
+        if "label" in inst:
+            if curr_block:
+                yield curr_block
+                curr_block = []
+            curr_block.append(inst)
+        else: # if not label, must be op
+            curr_block.append(inst)
+            if inst["op"] in branch_instructions:
+                yield curr_block
+                curr_block = []
+    if curr_block:
+        yield curr_block
+
 def is_blocked_function(json_function_entry):
 
     # Check that if inst has an op, then no branch inst
