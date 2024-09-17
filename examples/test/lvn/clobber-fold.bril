@@ -16,6 +16,5 @@
   # Use the sums again.
   sum3: int = add a b;
   prod2: int = mul sum3 sum3;
-
   print prod2;
 }
