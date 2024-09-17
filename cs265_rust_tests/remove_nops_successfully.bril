@@ -1,5 +1,8 @@
+
+# RUN: cat %s | bril2json | ../target/debug/remove_nop | bril2txt | grep -v "nop" 
+# grep -v "nop" searches if source code doesn't exist nop
 @main {
-  nop;
+  nop; 
   nop;
   nop;
   a : int = const 3;

@@ -5,7 +5,7 @@ fn main() {
     let mut prog = Program::stdin();
 
     for func in &mut prog.functions {
-        func.instrs.retain(|instr| instr.is_nop());
+        func.instrs.retain(|instr| !instr.is_nop());
     }
 
     // Serialize the modified program to stdout

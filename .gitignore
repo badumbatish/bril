@@ -16,7 +16,8 @@ __pycache__
 *.swo
 
 src/bril.egg-info/
-
+cs265_rust_tests/Output
+cs265_rust_tests/.lit_test_times.txt
 
 # Added by cargo
 

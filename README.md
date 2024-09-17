@@ -67,6 +67,13 @@ For our group, all passes are organized into passes/ in src/
 After you've activate your enviroment, run `pip install -e .` for python to recognize the pathing of packages.
 
 Then you can proceed
+## End to end testing
+Test with
+```
+lit cs265_rust_tests
+```
+
+pip install lit in your venv first
 ## Testing our group's optimizer
 
 cd into src/
