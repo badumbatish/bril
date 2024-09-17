@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # install deno
+source venv/bin/activate
 deno --version || curl -fsSL https://deno.land/install.sh | sh
 
 # install the ts bril tools

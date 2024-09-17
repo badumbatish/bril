@@ -12,13 +12,14 @@ def make_basic_blocks(function):
                 yield curr_block
                 curr_block = []
             curr_block.append(inst)
-        else: # if not label, must be op
+        else:  # if not label, must be op
             curr_block.append(inst)
             if inst["op"] in branch_instructions:
                 yield curr_block
                 curr_block = []
     if curr_block:
         yield curr_block
+
 
 def is_blocked_function(json_function_entry):
 
@@ -89,7 +90,7 @@ class LVNTable():
         if found_a_place:
             for row in self.inner_table[:self.id_counter-1]:
                 if symbol in row[1]:
-                    row[1].remove(symbol)
+                    # row[1].remove(symbol)
                     row[2] = {}
             pass
         else:
@@ -97,7 +98,7 @@ class LVNTable():
                 [self.ID(self.id_counter), [symbol], deepcopy(instrinsic_instruction)])
             for row in self.inner_table[:self.id_counter-1]:
                 if symbol in row[1]:
-                    row[1].remove(symbol)
+                    # row[1].remove(symbol)
                     row[2] = {}
             self.id_counter += 1
         self.__transform_from_instrinsic_instruction__(instrinsic_instruction)

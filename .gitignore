@@ -16,3 +16,8 @@ __pycache__
 *.swo
 
 src/bril.egg-info/
+
+
+# Added by cargo
+
+/target
