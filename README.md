@@ -70,7 +70,7 @@ Then you can proceed
 ## End to end testing
 Test with
 ```
-lit cs265_rust_tests
+lit cs265_rust_tests -v
 ```
 
 pip install lit in your venv first
