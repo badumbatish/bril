@@ -82,19 +82,34 @@ impl Instruction {
         }
     }
     pub fn is_id(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "id",
+            _ => false,
+        }
     }
     pub fn is_jmp(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "jmp",
+            _ => false,
+        }
     }
     pub fn is_br(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "br",
+            _ => false,
+        }
     }
     pub fn is_call(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "call",
+            _ => false,
+        }
     }
     pub fn is_ret(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "ret",
+            _ => false,
+        }
     }
     pub fn is_nop(&self) -> bool {
         match &self.op {
