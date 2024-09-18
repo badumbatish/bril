@@ -15,7 +15,7 @@ __pycache__
 *.swp
 *.swo
 
-src/bril.egg-info/
+*/bril.egg-info/
 cs265_rust_tests/Output
 cs265_rust_tests/.lit_test_times.txt
 
