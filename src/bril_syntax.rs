@@ -11,7 +11,7 @@ pub enum BrilType {
     Bool,
 }
 // Define a structure to represent the JSON format
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Instruction {
     pub op: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -26,11 +26,23 @@ pub struct Instruction {
     pub other_fields: Value, // Store unknown fields here
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Label {
+    pub label: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
+#[serde(untagged)]
+pub enum InstructionOrLabel {
+    Label(Label),
+    Instruction(Instruction),
+}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Function {
     pub name: String,
 
-    pub instrs: Vec<Instruction>,
+    pub instrs: Vec<InstructionOrLabel>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<String>,
 
