@@ -1,15 +1,11 @@
 use bril::bril_syntax::{Instruction, InstructionOrLabel, Label, Program};
-
+use bril::util::CFG;
 fn main() {
     // Filter out "nop" instructions for each function
-    let mut prog = Program::stdin();
+    let prog = Program::stdin();
 
-    for func in &mut prog.functions {
-        func.instrs.retain(|instr| match instr {
-            InstructionOrLabel::Instruction(a) => !a.is_nop(),
-            InstructionOrLabel::Label(_) => false,
-        });
-    }
+    let hm = CFG::hm_from_program(&prog);
+    CFG::print_hm(&hm);
 
     // Serialize the modified program to stdout
     //

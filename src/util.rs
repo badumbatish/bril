@@ -1,30 +1,46 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::bril_syntax::{Function, Instruction, InstructionOrLabel, Program};
+use crate::bril_syntax::{Function, Instruction, InstructionOrLabel, Label, Program};
 
 const BRANCH_INSTRUCTIONS: [&str; 4] = ["jmp", "br", "call", "ret"];
 
+#[derive(Hash, Debug, Eq, PartialEq, Clone)]
 pub enum Leader {
     FunctionName(String),
+    InstructionOrLabel(InstructionOrLabel),
 }
 
 #[derive(Debug)]
-struct BasicBlock {
+pub struct BasicBlock {
+    leader: Leader,
     instrs: Vec<InstructionOrLabel>,
     predecessors: Vec<RefCell<BasicBlock>>,
     successors: Vec<RefCell<BasicBlock>>,
 }
+impl std::fmt::Display for BasicBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "----Basic Block----
+            ----Leader: {:?}\n
+            ----Instructions: {:?}\n",
+            self.leader, self.instrs
+        )
+    }
+}
 impl BasicBlock {
     pub fn default() -> BasicBlock {
         Self {
+            leader: Leader::FunctionName(String::default()),
             instrs: Vec::new(),
             predecessors: Vec::new(),
             successors: Vec::new(),
         }
     }
-    pub fn simple_basic_blocks_vec_from_function(f: &Function) {
-        let mut result = Vec::<RefCell<BasicBlock>>::new();
+    pub fn simple_basic_blocks_vec_from_function(f: &Function) -> Vec<Rc<RefCell<BasicBlock>>> {
+        let result = Vec::new();
         let mut i = 0;
+        let mut last_instruction_before_construction = 0;
         while i < f.instrs.len() {
             match &f.instrs[i] {
                 InstructionOrLabel::Instruction(_) => {}
@@ -35,22 +51,52 @@ impl BasicBlock {
             }
             i += 1;
         }
+        result
     }
 }
 #[derive(Debug)]
-struct CFG {
+pub struct CFG {
     entry: BasicBlock,
 }
 // main:
 // @main
 impl CFG {
-    pub fn from_function(f: Function) {
+    pub fn hm_from_function(f: Function) -> HashMap<Leader, Rc<RefCell<BasicBlock>>> {
         // O(n)
-        let hm = HashMap::<InstructionOrLabel, RefCell<BasicBlock>>::new();
+        let mut hm = HashMap::<Leader, Rc<RefCell<BasicBlock>>>::new();
 
+        let simple_basic_blocks_vec_from_function =
+            BasicBlock::simple_basic_blocks_vec_from_function(&f);
+        for bb in simple_basic_blocks_vec_from_function {
+            let bb_clone = bb.clone();
+            hm.insert(bb_clone.borrow().leader.clone(), bb.clone());
+        }
+
+        hm
         // O(n)
     }
+    pub fn hm_from_program(p: &Program) -> HashMap<Leader, Rc<RefCell<BasicBlock>>> {
+        let mut hm = HashMap::<Leader, Rc<RefCell<BasicBlock>>>::new();
+
+        for func in p.functions.iter() {
+            let simple_basic_blocks_vec_from_function =
+                BasicBlock::simple_basic_blocks_vec_from_function(&func);
+            for bb in simple_basic_blocks_vec_from_function {
+                let bb_clone = bb.clone();
+                hm.insert(bb_clone.borrow().leader.clone(), bb.clone());
+            }
+        }
+
+        hm
+    }
+
+    pub fn print_hm(hm: &HashMap<Leader, Rc<RefCell<BasicBlock>>>) {
+        for i in hm.iter() {
+            eprint!("{:?}", i)
+        }
+    }
 }
+
 ////#[derive(Debug)]
 ////struct Instruction {
 ////    op: String,
@@ -168,11 +214,6 @@ impl CFG {
 //    }
 //}
 //
-//impl std::fmt::Display for BasicBlock {
-//    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//        write!(f, "{:?}", self.instrs)
-//    }
-//}
 //
 //impl std::fmt::Display for CFG {
 //    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
