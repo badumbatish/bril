@@ -11,10 +11,9 @@ pub enum BrilType {
     Bool,
 }
 // Define a structure to represent the JSON format
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Instruction {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub op: Option<String>,
+    pub op: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -27,7 +26,7 @@ pub struct Instruction {
     pub other_fields: Value, // Store unknown fields here
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Function {
     pub name: String,
 
@@ -100,7 +99,7 @@ impl Instruction {
     }
 
     pub fn has_side_effects(&self) -> bool {
-        match &self.op {
+        match self.op.as_str() {
             "print" | "call" | "alloc" | "free" | "store" => true,
             _ => false,
         }

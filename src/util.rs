@@ -1,15 +1,14 @@
-pub mod util;
-
-use bril_syntax::*;
 use std::collections::HashMap;
+
+use crate::bril_syntax::{Function, Instruction};
 
 const BRANCH_INSTRUCTIONS: [&str; 4] = ["jmp", "br", "call", "ret"];
 
-#[derive(Debug)]
-struct Instruction {
-    op: String,
-    args: Vec<String>,
-}
+//#[derive(Debug)]
+//struct Instruction {
+//    op: String,
+//    args: Vec<String>,
+//}
 
 #[derive(Debug)]
 struct BasicBlock {
@@ -72,11 +71,18 @@ impl CFG {
                             basic_blocks.push(right);
                             future_blocks.push((left, inst.args[0].clone()));
                             future_blocks.push((right, inst.args[0].clone()));
-
                         } else if op == "call" {
-                            basic_blocks.last_mut().unwrap().successors.push(inst.args[0].clone());
+                            basic_blocks
+                                .last_mut()
+                                .unwrap()
+                                .successors
+                                .push(inst.args[0].clone());
                         } else if op == "ret" {
-                            basic_blocks.last_mut().unwrap().successors.push("EXIT".to_string());
+                            basic_blocks
+                                .last_mut()
+                                .unwrap()
+                                .successors
+                                .push("EXIT".to_string());
                         }
                     }
                     curr_instrs.clear();
@@ -123,11 +129,26 @@ impl std::fmt::Display for CFG {
 fn main() {
     let function_name = "example_function".to_string();
     let instructions = vec![
-        Instruction { op: "label".to_string(), args: vec!["start".to_string()] },
-        Instruction { op: "add".to_string(), args: vec!["a".to_string(), "b".to_string()] },
-        Instruction { op: "jmp".to_string(), args: vec!["end".to_string()] },
-        Instruction { op: "label".to_string(), args: vec!["end".to_string()] },
-        Instruction { op: "ret".to_string(), args: vec![] },
+        Instruction {
+            op: "label".to_string(),
+            args: vec!["start".to_string()],
+        },
+        Instruction {
+            op: "add".to_string(),
+            args: vec!["a".to_string(), "b".to_string()],
+        },
+        Instruction {
+            op: "jmp".to_string(),
+            args: vec!["end".to_string()],
+        },
+        Instruction {
+            op: "label".to_string(),
+            args: vec!["end".to_string()],
+        },
+        Instruction {
+            op: "ret".to_string(),
+            args: vec![],
+        },
     ];
 
     let cfg = CFG::new(function_name, instructions);
