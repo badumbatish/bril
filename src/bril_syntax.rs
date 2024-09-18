@@ -101,7 +101,7 @@ impl Instruction {
 
     pub fn has_side_effects(&self) -> bool {
         match &self.op {
-            "print" | "call" | "alloc" | "free" | "load" | "store" => true,
+            "print" | "call" | "alloc" | "free" | "store" => true,
             _ => false,
         }
     }
