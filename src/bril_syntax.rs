@@ -51,83 +51,43 @@ pub struct Program {
 
 impl Instruction {
     pub fn is_add(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "add",
-            _ => false,
-        }
+        &self.op == "add"
     }
     pub fn is_mul(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "mul",
-            _ => false,
-        }
+        &self.op == "mul"
     }
     pub fn is_sub(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "sub",
-            _ => false,
-        }
+        &self.op == "sub"
     }
     pub fn is_div(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "div",
-            _ => false,
-        }
+        &self.op == "div"
     }
     pub fn is_eq(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "eq",
-            _ => false,
-        }
+        &self.op == "eq"
     }
     pub fn is_lt(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "lt",
-            _ => false,
-        }
+        &self.op == "lt"
     }
     pub fn is_gt(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "gt",
-            _ => false,
-        }
+        &self.op == "gt"
     }
     pub fn is_le(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "le",
-            _ => false,
-        }
+        &self.op == "le"
     }
-
     pub fn is_const(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "const",
-            _ => false,
-        }
+        &self.op == "const"
     }
     pub fn is_id(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "id",
-            _ => false,
-        }
+        &self.op == "id"
     }
     pub fn is_jmp(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "jmp",
-            _ => false,
-        }
+        &self.op == "jmp"
     }
     pub fn is_br(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "br",
-            _ => false,
-        }
+        &self.op == "br"
     }
     pub fn is_call(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "call",
-            _ => false,
-        }
+        &self.op == "call"
     }
     pub fn is_ret(&self) -> bool {
         &self.op == "ret"
