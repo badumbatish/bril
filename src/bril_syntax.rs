@@ -51,28 +51,52 @@ pub struct Program {
 
 impl Instruction {
     pub fn is_add(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "add",
+            _ => false,
+        }
     }
     pub fn is_mul(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "mul",
+            _ => false,
+        }
     }
     pub fn is_sub(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "sub",
+            _ => false,
+        }
     }
     pub fn is_div(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "div",
+            _ => false,
+        }
     }
     pub fn is_eq(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "eq",
+            _ => false,
+        }
     }
     pub fn is_lt(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "lt",
+            _ => false,
+        }
     }
     pub fn is_gt(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "gt",
+            _ => false,
+        }
     }
     pub fn is_le(&self) -> bool {
-        todo!()
+        match &self.op {
+            Some(op) => op == "le",
+            _ => false,
+        }
     }
 
     pub fn is_const(&self) -> bool {
@@ -106,23 +130,20 @@ impl Instruction {
         }
     }
     pub fn is_ret(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "ret",
-            _ => false,
-        }
+        &self.op == "ret"
     }
     pub fn is_nop(&self) -> bool {
-        match &self.op {
-            Some(op) => op == "nop",
-            _ => false,
-        }
+        &self.op == "nop"
     }
     pub fn is_print(&self) -> bool {
-        todo!()
+        &self.op == "print"
     }
 
     pub fn has_side_effects(&self) -> bool {
-        todo!()
+        match &self.op {
+            "print" | "call" | "alloc" | "free" | "load" | "store" => true,
+            _ => false,
+        }
     }
 }
 impl Function {}
