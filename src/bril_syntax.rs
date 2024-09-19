@@ -69,7 +69,7 @@ impl InstructionOrLabel {
         }
     }
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Hash, Clone, PartialEq, Eq)]
 pub struct Function {
     pub name: String,
 

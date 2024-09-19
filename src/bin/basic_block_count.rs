@@ -6,8 +6,10 @@ fn main() {
 
     let cfg = CFG::from_program(prog);
 
-    let prog = cfg.to_program();
+    println!("{}", cfg.hm.len());
 
-    prog.stdout()
+    //let prog = cfg.to_program();
+    //
+    //prog.stdout()
     // cfg.print_hm();
 }
