@@ -1,4 +1,7 @@
-use std::io::{self, Read};
+use std::{
+    fmt::Display,
+    io::{self, Read},
+};
 
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,6 +12,15 @@ pub enum BrilType {
     // INFO: Technically we have a third option which is parameterized type
     Int,
     Bool,
+}
+
+impl Display for BrilType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BrilType::Int => write!(f, "int"),
+            BrilType::Bool => write!(f, "bool"),
+        }
+    }
 }
 // Define a structure to represent the JSON format
 #[derive(Serialize, Deserialize, Debug, Hash, Clone, PartialEq, Eq)]
@@ -47,6 +59,15 @@ pub struct FunctionArg {
 pub enum InstructionOrLabel {
     Label(Label),
     Instruction(Instruction),
+}
+
+impl InstructionOrLabel {
+    pub fn to_string(&self) -> String {
+        match self {
+            InstructionOrLabel::Label(lb) => lb.label.clone(),
+            InstructionOrLabel::Instruction(ins) => ins.to_string(),
+        }
+    }
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Function {
@@ -132,7 +153,51 @@ impl Instruction {
 
     /// this is for graphviz dot
     pub fn to_string(&self) -> String {
-        todo!()
+        // sum: int = add n five;
+        if self.is_add() {
+            return format!(
+                "{}: {} = {} {} {};",
+                self.dest.clone().unwrap(),
+                self.bril_type.clone().unwrap(),
+                self.op.replace("\"", ""),
+                self.args.clone().unwrap()[0].to_string().replace("\"", ""),
+                self.args.clone().unwrap()[1].to_string().replace("\"", "")
+            );
+        } else if self.is_const() {
+            return format!(
+                "{}: {} = {} {};",
+                self.dest.clone().unwrap(),
+                self.bril_type.clone().unwrap(),
+                self.op,
+                self.value.clone().unwrap(),
+            );
+        } else if self.is_ret() {
+            return format!(
+                "{} {};",
+                self.op,
+                self.args.clone().unwrap()[0].to_string().replace("\"", ""),
+            );
+        } else if self.is_call() {
+            // let dest = match &self.dest {
+            //     Some(k) => format!("{} :", k.clone()),
+            //     None => "".to_string(),
+            // };
+            //
+            // let acl = self.args.clone();
+            // let one = match &acl {
+            //     Some(args) => args[0].to_string(),
+            //     None => "".to_string(),
+            // };
+            // let two = match &acl {
+            //     Some(args) => args[1].to_string(),
+            //     None => "".to_string(),
+            // };
+            return format!("...call func");
+        } else if self.is_print() {
+            return format!("print ...");
+        } else {
+            "default".to_string()
+        }
 
         // TODO: support const, call, ret, add
     }

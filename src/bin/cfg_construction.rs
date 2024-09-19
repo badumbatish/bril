@@ -5,5 +5,6 @@ fn main() {
     let prog = Program::stdin();
 
     let cfg = CFG::from_program(&prog);
-    cfg.print_hm();
+    println!("{}", cfg.to_dot_string());
+    // cfg.print_hm();
 }

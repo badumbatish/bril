@@ -1,5 +1,10 @@
 use core::panic;
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::{Ref, RefCell},
+    collections::HashMap,
+    rc::Rc,
+    result,
+};
 
 use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 
@@ -12,6 +17,7 @@ pub enum Leader {
 #[derive(Debug)]
 pub struct BasicBlock {
     leader: Leader,
+    id: u32,
     instrs: Vec<InstructionOrLabel>,
     predecessors: Vec<Rc<RefCell<BasicBlock>>>,
     successors: Vec<Rc<RefCell<BasicBlock>>>,
@@ -45,15 +51,19 @@ impl BasicBlock {
         let _result = String::new();
         todo!()
     }
-    pub fn default() -> BasicBlock {
+    pub fn default(id: u32) -> BasicBlock {
         Self {
             leader: Leader::FunctionName(String::default()),
+            id: id,
             instrs: Vec::new(),
             predecessors: Vec::new(),
             successors: Vec::new(),
         }
     }
-    pub fn simple_basic_blocks_vec_from_function(f: &Function) -> Vec<Rc<RefCell<BasicBlock>>> {
+    pub fn simple_basic_blocks_vec_from_function(
+        f: &Function,
+        id: &mut u32,
+    ) -> Vec<Rc<RefCell<BasicBlock>>> {
         let mut result: Vec<Rc<RefCell<BasicBlock>>> = Vec::new();
         let mut i = 0;
         // let mut last_instruction_before_construction = 0;
@@ -62,7 +72,8 @@ impl BasicBlock {
                 // this match only happens if instruction is at start of function or after a branch
                 // without label
                 InstructionOrLabel::Instruction(_) => {
-                    let bb = Rc::new(RefCell::new(BasicBlock::default()));
+                    let bb = Rc::new(RefCell::new(BasicBlock::default(id.clone())));
+                    *id += 1;
                     let bb_clone = bb.clone();
                     let mut bb_br = bb_clone.borrow_mut();
                     if result.is_empty() {
@@ -75,7 +86,12 @@ impl BasicBlock {
                             .borrow_mut()
                             .successors
                             .push(bb.clone());
-                        bb_br.predecessors.push(result.last().unwrap().clone());
+                        if let InstructionOrLabel::Instruction(ins) = &f.instrs[i - 1] {
+                            if !ins.is_nonlinear() {
+                                bb_br.predecessors.push(result.last().unwrap().clone());
+                            }
+                        }
+
                         // panic!("I don't know how to handle this case of instruction happenning after a non-linear without label");
                     }
 
@@ -124,7 +140,7 @@ impl BasicBlock {
 }
 #[derive(Debug)]
 pub struct CFG {
-    hm: HashMap<Leader, Rc<RefCell<BasicBlock>>>,
+    hm: HashMap<u32, Rc<RefCell<BasicBlock>>>,
 }
 // main:
 // @main
@@ -133,8 +149,9 @@ impl CFG {
         // O(n)
         let mut hm = HashMap::<Leader, Rc<RefCell<BasicBlock>>>::new();
 
+        let mut basic_block_counter = 0;
         let simple_basic_blocks_vec_from_function =
-            BasicBlock::simple_basic_blocks_vec_from_function(&f);
+            BasicBlock::simple_basic_blocks_vec_from_function(&f, &mut basic_block_counter);
         for bb in simple_basic_blocks_vec_from_function {
             let bb_clone = bb.clone();
             hm.insert(bb_clone.borrow().leader.clone(), bb.clone());
@@ -144,14 +161,15 @@ impl CFG {
         // O(n)
     }
     pub fn from_program(p: &Program) -> Self {
-        let mut hm = HashMap::<Leader, Rc<RefCell<BasicBlock>>>::new();
+        let mut hm = HashMap::<u32, Rc<RefCell<BasicBlock>>>::new();
 
+        let mut basic_block_counter = 0;
         for func in p.functions.iter() {
             let simple_basic_blocks_vec_from_function =
-                BasicBlock::simple_basic_blocks_vec_from_function(func);
+                BasicBlock::simple_basic_blocks_vec_from_function(func, &mut basic_block_counter);
             for bb in simple_basic_blocks_vec_from_function {
                 let bb_clone = bb.clone();
-                hm.insert(bb_clone.borrow().leader.clone(), bb.clone());
+                hm.insert(bb_clone.borrow().id.clone(), bb.clone());
             }
         }
 
@@ -166,27 +184,62 @@ impl CFG {
     }
 
     pub fn to_dot_string(&self) -> String {
-        let mut leader_to_dot_node = HashMap::<Leader, String>::new();
-        let mut dot_map = HashMap::<String, Rc<RefCell<BasicBlock>>>::new();
+        let mut graph_as_string = String::from("digraph {\n");
 
-        let mut graph_as_string = String::from("digraph {");
-
-        let mut node_base_name = "node".to_string();
-        let mut counter = 0;
-        for i in self.hm {
-            leader_to_dot_node.insert(i.0, get_next_string(&node_base_name, counter));
-            counter += 1;
+        for i in self.hm.iter() {
+            let node = format!(
+                "{} [label=\"{} \"] \n",
+                Self::make_node_name(*i.0),
+                Self::make_info_from_block(i.1.clone())
+            );
+            graph_as_string.push_str(&node);
         }
 
+        for i in self.hm.iter() {
+            graph_as_string += &Self::make_rel_from_block(i.1.clone())
+        }
+        // Setting up edge for the nodes
+
         graph_as_string.push_str("}");
-        "".to_string();
 
-        todo!()
+        graph_as_string
     }
-}
+    fn make_node_name(id: u32) -> String {
+        "\tnode".to_owned() + &id.to_string()
+    }
+    fn make_info_from_block(bb: Rc<RefCell<BasicBlock>>) -> String {
+        let mut result = String::new();
 
-pub fn get_next_string(name: &String, _id: u32) -> String {
-    return name.clone() + std::stringify!(_id + 1);
+        match &bb.borrow().leader {
+            Leader::FunctionName(fn_name) => {
+                result.push_str(&("Function: ".to_owned() + &fn_name.clone() + " \\n"));
+                for i in bb.borrow().instrs.iter().skip(1) {
+                    result += &(i.to_string() + "\\n");
+                }
+            }
+            Leader::InstructionOrLabel(_) => {
+                for i in bb.borrow().instrs.iter() {
+                    result += &(i.to_string() + "\\n");
+                }
+            }
+        }
+
+        result
+    }
+
+    fn make_rel_from_block(bb: Rc<RefCell<BasicBlock>>) -> String {
+        let mut result = String::from(Self::make_node_name(bb.borrow().id) + "-> { ");
+
+        for pred in &bb.borrow().predecessors {
+            result += &(Self::make_node_name(pred.borrow().id) + &" ".to_string());
+        }
+
+        for succ in &bb.borrow().successors {
+            result += &(Self::make_node_name(succ.borrow().id) + &" ".to_string());
+        }
+        result += " }\n";
+        result
+    }
 }
 
 ////#[derive(Debug)]
