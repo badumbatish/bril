@@ -41,6 +41,10 @@ impl std::fmt::Display for BasicBlock {
     }
 }
 impl BasicBlock {
+    pub fn as_txt_instructions(self) -> String {
+        let _result = String::new();
+        todo!()
+    }
     pub fn default() -> BasicBlock {
         Self {
             leader: Leader::FunctionName(String::default()),
@@ -160,6 +164,29 @@ impl CFG {
             eprintln!("{}", i.1.borrow_mut())
         }
     }
+
+    pub fn to_dot_string(&self) -> String {
+        let mut leader_to_dot_node = HashMap::<Leader, String>::new();
+        let mut dot_map = HashMap::<String, Rc<RefCell<BasicBlock>>>::new();
+
+        let mut graph_as_string = String::from("digraph {");
+
+        let mut node_base_name = "node".to_string();
+        let mut counter = 0;
+        for i in self.hm {
+            leader_to_dot_node.insert(i.0, get_next_string(&node_base_name, counter));
+            counter += 1;
+        }
+
+        graph_as_string.push_str("}");
+        "".to_string();
+
+        todo!()
+    }
+}
+
+pub fn get_next_string(name: &String, _id: u32) -> String {
+    return name.clone() + std::stringify!(_id + 1);
 }
 
 ////#[derive(Debug)]

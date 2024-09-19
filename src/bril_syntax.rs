@@ -129,6 +129,13 @@ impl Instruction {
             "print" | "call" | "alloc" | "free" | "store" | "ret"
         )
     }
+
+    /// this is for graphviz dot
+    pub fn to_string(&self) -> String {
+        todo!()
+
+        // TODO: support const, call, ret, add
+    }
 }
 impl Function {}
 impl Program {
