@@ -13,8 +13,8 @@ pub enum Leader {
 pub struct BasicBlock {
     leader: Leader,
     instrs: Vec<InstructionOrLabel>,
-    predecessors: Vec<RefCell<BasicBlock>>,
-    successors: Vec<RefCell<BasicBlock>>,
+    predecessors: Vec<Rc<RefCell<BasicBlock>>>,
+    successors: Vec<Rc<RefCell<BasicBlock>>>,
 }
 impl std::fmt::Display for BasicBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -29,6 +29,14 @@ impl std::fmt::Display for BasicBlock {
         for instr in self.instrs.iter() {
             writeln!(f, "{:?}", instr).unwrap();
         }
+        writeln!(f, "Pred: ").unwrap();
+        for instr in self.predecessors.iter() {
+            writeln!(f, "{:?}", instr.borrow()).unwrap();
+        }
+        writeln!(f, "Succ: ").unwrap();
+        for instr in self.successors.iter() {
+            writeln!(f, "{:?}", instr.borrow()).unwrap();
+        }
         writeln!(f, "\n")
     }
 }
@@ -42,7 +50,7 @@ impl BasicBlock {
         }
     }
     pub fn simple_basic_blocks_vec_from_function(f: &Function) -> Vec<Rc<RefCell<BasicBlock>>> {
-        let mut result = Vec::new();
+        let mut result: Vec<Rc<RefCell<BasicBlock>>> = Vec::new();
         let mut i = 0;
         // let mut last_instruction_before_construction = 0;
         while i < f.instrs.len() {
@@ -50,14 +58,24 @@ impl BasicBlock {
                 // this match only happens if instruction is at start of function or after a branch
                 // without label
                 InstructionOrLabel::Instruction(_) => {
-                    let mut bb = BasicBlock::default();
+                    let bb = Rc::new(RefCell::new(BasicBlock::default()));
+                    let bb_clone = bb.clone();
+                    let mut bb_br = bb_clone.borrow_mut();
                     if result.is_empty() {
-                        bb.leader = Leader::FunctionName(f.name.clone());
+                        bb_br.leader = Leader::FunctionName(f.name.clone());
                     } else {
-                        panic!("I don't know how to handle this case of instruction happenning after a branch without label");
+                        bb_br.leader = Leader::InstructionOrLabel(f.instrs[i].clone());
+                        result
+                            .last()
+                            .unwrap()
+                            .borrow_mut()
+                            .successors
+                            .push(bb.clone());
+                        bb_br.predecessors.push(result.last().unwrap().clone());
+                        // panic!("I don't know how to handle this case of instruction happenning after a non-linear without label");
                     }
 
-                    bb.instrs.push(f.instrs[i].clone());
+                    bb_br.instrs.push(f.instrs[i].clone());
                     i += 1;
                     loop {
                         if i >= f.instrs.len() {
@@ -65,10 +83,10 @@ impl BasicBlock {
                         }
                         match &f.instrs[i] {
                             InstructionOrLabel::Instruction(instr) => {
-                                bb.instrs
+                                bb_br
+                                    .instrs
                                     .push(InstructionOrLabel::Instruction(instr.clone()));
                                 if instr.is_nonlinear() {
-                                    i += 1;
                                     break;
                                 }
                             }
@@ -77,21 +95,22 @@ impl BasicBlock {
                         i += 1;
                     }
 
-                    result.push(Rc::new(RefCell::new(bb)));
+                    result.push(bb);
                 }
-                InstructionOrLabel::Label(lb) => {
-                    let mut bb = BasicBlock::default();
-                    bb.leader = Leader::InstructionOrLabel(InstructionOrLabel::Label(lb.clone()));
-                    bb.instrs.push(f.instrs[i].clone());
-
-                    i += 1;
-                    loop {
-                        match &f.instrs[i] {
-                            InstructionOrLabel::Instruction(_) => {}
-                            InstructionOrLabel::Label(_) => {}
-                        }
-                    }
-                    continue;
+                InstructionOrLabel::Label(_lb) => {
+                    panic!("Cannot handle labels rn");
+                    // let mut bb = BasicBlock::default();
+                    // bb.leader = Leader::InstructionOrLabel(InstructionOrLabel::Label(lb.clone()));
+                    // bb.instrs.push(f.instrs[i].clone());
+                    //
+                    // i += 1;
+                    // loop {
+                    //     match &f.instrs[i] {
+                    //         InstructionOrLabel::Instruction(_) => {}
+                    //         InstructionOrLabel::Label(_) => {}
+                    //     }
+                    // }
+                    // continue;
                 }
             }
             i += 1;
@@ -101,7 +120,7 @@ impl BasicBlock {
 }
 #[derive(Debug)]
 pub struct CFG {
-    entry: BasicBlock,
+    hm: HashMap<Leader, Rc<RefCell<BasicBlock>>>,
 }
 // main:
 // @main
@@ -120,25 +139,25 @@ impl CFG {
         hm
         // O(n)
     }
-    pub fn hm_from_program(p: &Program) -> HashMap<Leader, Rc<RefCell<BasicBlock>>> {
+    pub fn from_program(p: &Program) -> Self {
         let mut hm = HashMap::<Leader, Rc<RefCell<BasicBlock>>>::new();
 
         for func in p.functions.iter() {
             let simple_basic_blocks_vec_from_function =
-                BasicBlock::simple_basic_blocks_vec_from_function(&func);
+                BasicBlock::simple_basic_blocks_vec_from_function(func);
             for bb in simple_basic_blocks_vec_from_function {
                 let bb_clone = bb.clone();
                 hm.insert(bb_clone.borrow().leader.clone(), bb.clone());
             }
         }
 
-        hm
+        Self { hm }
     }
 
-    pub fn print_hm(hm: &HashMap<Leader, Rc<RefCell<BasicBlock>>>) {
-        for i in hm.iter() {
+    pub fn print_hm(self) {
+        for i in self.hm.iter() {
             eprintln!("{:?}", i.0);
-            eprintln!("{}", i.1.borrow())
+            eprintln!("{}", i.1.borrow_mut())
         }
     }
 }

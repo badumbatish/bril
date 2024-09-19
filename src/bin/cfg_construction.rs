@@ -4,6 +4,6 @@ fn main() {
     // Filter out "nop" instructions for each function
     let prog = Program::stdin();
 
-    let hm = CFG::hm_from_program(&prog);
-    CFG::print_hm(&hm);
+    let cfg = CFG::from_program(&prog);
+    cfg.print_hm();
 }

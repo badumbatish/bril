@@ -124,10 +124,10 @@ impl Instruction {
     }
 
     pub fn has_side_effects(&self) -> bool {
-        match self.op.as_str() {
-            "print" | "call" | "alloc" | "free" | "store" => true,
-            _ => false,
-        }
+        matches!(
+            self.op.as_str(),
+            "print" | "call" | "alloc" | "free" | "store" | "ret"
+        )
     }
 }
 impl Function {}
