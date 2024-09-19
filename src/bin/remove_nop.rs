@@ -1,4 +1,4 @@
-use bril::bril_syntax::{Instruction, InstructionOrLabel, Label, Program};
+use bril::bril_syntax::{InstructionOrLabel, Program};
 
 fn main() {
     // Filter out "nop" instructions for each function

@@ -1,9 +1,7 @@
 use core::panic;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::bril_syntax::{Function, Instruction, InstructionOrLabel, Label, Program};
-
-const BRANCH_INSTRUCTIONS: [&str; 4] = ["jmp", "br", "call", "ret"];
+use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 
 #[derive(Hash, Debug, Eq, PartialEq, Clone)]
 pub enum Leader {
@@ -29,7 +27,7 @@ impl std::fmt::Display for BasicBlock {
         )
         .unwrap();
         for instr in self.instrs.iter() {
-            writeln!(f, "{:?}", instr);
+            writeln!(f, "{:?}", instr).unwrap();
         }
         writeln!(f, "\n")
     }
@@ -46,7 +44,7 @@ impl BasicBlock {
     pub fn simple_basic_blocks_vec_from_function(f: &Function) -> Vec<Rc<RefCell<BasicBlock>>> {
         let mut result = Vec::new();
         let mut i = 0;
-        let mut last_instruction_before_construction = 0;
+        // let mut last_instruction_before_construction = 0;
         while i < f.instrs.len() {
             match &f.instrs[i] {
                 // this match only happens if instruction is at start of function or after a branch
@@ -62,16 +60,21 @@ impl BasicBlock {
                     bb.instrs.push(f.instrs[i].clone());
                     i += 1;
                     loop {
-                        match &f.instrs[i] {
-                            InstructionOrLabel::Instruction(instr) => bb
-                                .instrs
-                                .push(InstructionOrLabel::Instruction(instr.clone())),
-                            InstructionOrLabel::Label(_) => panic!("Cannot handle labels rn"),
-                        }
-                        i += 1;
                         if i >= f.instrs.len() {
                             break;
                         }
+                        match &f.instrs[i] {
+                            InstructionOrLabel::Instruction(instr) => {
+                                bb.instrs
+                                    .push(InstructionOrLabel::Instruction(instr.clone()));
+                                if instr.is_nonlinear() {
+                                    i += 1;
+                                    break;
+                                }
+                            }
+                            InstructionOrLabel::Label(_) => panic!("Cannot handle labels rn"),
+                        }
+                        i += 1;
                     }
 
                     result.push(Rc::new(RefCell::new(bb)));

@@ -22,6 +22,10 @@ pub struct Instruction {
     #[serde(rename = "type")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bril_type: Option<BrilType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub funcs: Option<Vec<String>>,
     #[serde(flatten)]
     pub other_fields: Value, // Store unknown fields here
 }
@@ -31,6 +35,12 @@ pub struct Label {
     pub label: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FunctionArg {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub fn_type: String,
+}
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 #[serde(untagged)]
@@ -44,7 +54,7 @@ pub struct Function {
 
     pub instrs: Vec<InstructionOrLabel>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub args: Option<String>,
+    pub args: Option<Vec<FunctionArg>>,
 
     #[serde(rename = "type")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -108,6 +118,9 @@ impl Instruction {
     }
     pub fn is_print(&self) -> bool {
         &self.op == "print"
+    }
+    pub fn is_nonlinear(&self) -> bool {
+        self.is_jmp() || self.is_call() || self.is_print() || self.is_br()
     }
 
     pub fn has_side_effects(&self) -> bool {
