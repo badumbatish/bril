@@ -1,3 +1,4 @@
+use core::panic;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::bril_syntax::{Function, Instruction, InstructionOrLabel, Label, Program};
@@ -22,10 +23,15 @@ impl std::fmt::Display for BasicBlock {
         write!(
             f,
             "----Basic Block----
-            ----Leader: {:?}\n
-            ----Instructions: {:?}\n",
-            self.leader, self.instrs
+----Leader: {:?}
+----Instructions: \n",
+            self.leader,
         )
+        .unwrap();
+        for instr in self.instrs.iter() {
+            writeln!(f, "{:?}", instr);
+        }
+        writeln!(f, "\n")
     }
 }
 impl BasicBlock {
@@ -38,15 +44,51 @@ impl BasicBlock {
         }
     }
     pub fn simple_basic_blocks_vec_from_function(f: &Function) -> Vec<Rc<RefCell<BasicBlock>>> {
-        let result = Vec::new();
+        let mut result = Vec::new();
         let mut i = 0;
         let mut last_instruction_before_construction = 0;
         while i < f.instrs.len() {
             match &f.instrs[i] {
-                InstructionOrLabel::Instruction(_) => {}
-                InstructionOrLabel::Label(_) => {
+                // this match only happens if instruction is at start of function or after a branch
+                // without label
+                InstructionOrLabel::Instruction(_) => {
                     let mut bb = BasicBlock::default();
+                    if result.is_empty() {
+                        bb.leader = Leader::FunctionName(f.name.clone());
+                    } else {
+                        panic!("I don't know how to handle this case of instruction happenning after a branch without label");
+                    }
+
                     bb.instrs.push(f.instrs[i].clone());
+                    i += 1;
+                    loop {
+                        match &f.instrs[i] {
+                            InstructionOrLabel::Instruction(instr) => bb
+                                .instrs
+                                .push(InstructionOrLabel::Instruction(instr.clone())),
+                            InstructionOrLabel::Label(_) => panic!("Cannot handle labels rn"),
+                        }
+                        i += 1;
+                        if i >= f.instrs.len() {
+                            break;
+                        }
+                    }
+
+                    result.push(Rc::new(RefCell::new(bb)));
+                }
+                InstructionOrLabel::Label(lb) => {
+                    let mut bb = BasicBlock::default();
+                    bb.leader = Leader::InstructionOrLabel(InstructionOrLabel::Label(lb.clone()));
+                    bb.instrs.push(f.instrs[i].clone());
+
+                    i += 1;
+                    loop {
+                        match &f.instrs[i] {
+                            InstructionOrLabel::Instruction(_) => {}
+                            InstructionOrLabel::Label(_) => {}
+                        }
+                    }
+                    continue;
                 }
             }
             i += 1;
@@ -92,7 +134,8 @@ impl CFG {
 
     pub fn print_hm(hm: &HashMap<Leader, Rc<RefCell<BasicBlock>>>) {
         for i in hm.iter() {
-            eprint!("{:?}", i)
+            eprintln!("{:?}", i.0);
+            eprintln!("{}", i.1.borrow())
         }
     }
 }

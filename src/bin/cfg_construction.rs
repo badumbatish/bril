@@ -6,8 +6,4 @@ fn main() {
 
     let hm = CFG::hm_from_program(&prog);
     CFG::print_hm(&hm);
-
-    // Serialize the modified program to stdout
-    //
-    prog.stdout();
 }
