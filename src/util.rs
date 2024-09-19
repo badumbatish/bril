@@ -212,7 +212,7 @@ impl CFG {
 
         match &bb.borrow().leader {
             Leader::FunctionName(fn_name) => {
-                result.push_str(&("Function: ".to_owned() + &fn_name.clone() + " \\n"));
+                result.push_str(&("@".to_owned() + &fn_name.clone() + "(...) \\n"));
                 for i in bb.borrow().instrs.iter().skip(1) {
                     result += &(i.to_string() + "\\n");
                 }

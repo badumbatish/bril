@@ -29,7 +29,7 @@ pub struct Instruction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub args: Option<Vec<Value>>,
+    pub args: Option<Vec<String>>,
 
     #[serde(rename = "type")]
     #[serde(skip_serializing_if = "Option::is_none")]
