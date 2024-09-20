@@ -6,7 +6,7 @@ fn main() {
 
     let cfg = CFG::from_program(prog);
 
-    println!("{}", cfg.hm.len());
+    println!("Block count : {}", cfg.hm.len());
 
     //let prog = cfg.to_program();
     //

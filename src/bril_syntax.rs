@@ -82,6 +82,11 @@ impl From<String> for InstructionOrLabel {
         Self::Label(Label { label: lb })
     }
 }
+impl From<&Option<InstructionOrLabel>> for InstructionOrLabel {
+    fn from(lb: &Option<InstructionOrLabel>) -> Self {
+        lb.clone().unwrap()
+    }
+}
 #[derive(Serialize, Deserialize, Debug, Hash, Clone, PartialEq, Eq)]
 pub struct Function {
     pub name: String,
@@ -168,14 +173,14 @@ impl Instruction {
     pub fn to_string(&self) -> String {
         // sum: int = add n five;
         if self.is_add() {
-            return format!(
+            format!(
                 "{}: {} = {} {} {};",
                 self.dest.clone().unwrap(),
                 self.bril_type.clone().unwrap(),
                 self.op.replace("\"", ""),
                 self.args.clone().unwrap()[0].to_string().replace("\"", ""),
                 self.args.clone().unwrap()[1].to_string().replace("\"", "")
-            );
+            )
         } else if self.is_const() {
             return format!(
                 "{}: {} = {} {};",
@@ -205,9 +210,9 @@ impl Instruction {
             //     Some(args) => args[1].to_string(),
             //     None => "".to_string(),
             // };
-            return format!("...call func");
+            return "...call func".to_string();
         } else if self.is_print() {
-            return format!("print ...");
+            return "print ...".to_string();
         } else {
             "default".to_string()
         }

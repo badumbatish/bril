@@ -1,32 +1,33 @@
 use core::panic;
 use std::{
     cell::RefCell,
-    clone,
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     rc::Rc,
 };
 
-use crate::bril_syntax::{Function, Instruction, InstructionOrLabel, Label, Program};
+use crate::bril_syntax::{Function, InstructionOrLabel, Label, Program};
 
-#[derive(Hash, Debug, Eq, PartialEq, Clone)]
-pub enum Leader {
-    FunctionName(Function),
-    InstructionOrLabel(InstructionOrLabel),
-}
-
-impl Leader {
-    pub fn from_label_string(label: String) -> Self {
-        Self::InstructionOrLabel(InstructionOrLabel::Label(Label { label }))
-    }
-
-    pub fn from_label(label: Label) -> Self {
-        Self::InstructionOrLabel(InstructionOrLabel::Label(label))
-    }
-
-    pub fn from_instr_or_label(instr: InstructionOrLabel) -> Self {
-        Self::InstructionOrLabel(instr)
-    }
-}
+// Maybe this will be useful in the future but for now a leader is the first instruction in the
+// block
+//#[derive(Hash, Debug, Eq, PartialEq, Clone)]
+//pub enum Leader {
+//    FunctionName(Function),
+//    InstructionOrLabel(InstructionOrLabel),
+//}
+//
+//impl Leader {
+//    pub fn from_label_string(label: String) -> Self {
+//        Self::InstructionOrLabel(InstructionOrLabel::Label(Label { label }))
+//    }
+//
+//    pub fn from_label(label: Label) -> Self {
+//        Self::InstructionOrLabel(InstructionOrLabel::Label(label))
+//    }
+//
+//    pub fn from_instr_or_label(instr: InstructionOrLabel) -> Self {
+//        Self::InstructionOrLabel(instr)
+//    }
+//}
 
 #[derive(Debug)]
 pub struct BasicBlock {
@@ -66,7 +67,7 @@ impl BasicBlock {
     pub fn default(id: u32) -> BasicBlock {
         Self {
             func: None,
-            id: id,
+            id,
             instrs: Vec::new(),
             predecessors: Vec::new(),
             successors: Vec::new(),
@@ -85,7 +86,7 @@ impl BasicBlock {
                 // this match only happens if instruction is at start of function or after a branch
                 // without label
                 InstructionOrLabel::Instruction(_) => {
-                    let mut bb = BasicBlock::default(id.clone());
+                    let mut bb = BasicBlock::default(*id);
                     *id += 1;
                     if result.is_empty() {
                         bb.func = Some(f.clone());
@@ -119,6 +120,7 @@ impl BasicBlock {
                                     break;
                                 }
                             }
+                            // TODO: Handle doubly label
                             InstructionOrLabel::Label(_) => panic!("Cannot handle labels rn"),
                         }
                         i += 1;
@@ -128,11 +130,10 @@ impl BasicBlock {
                 }
                 InstructionOrLabel::Label(lb) => {
                     //panic!("Cannot handle labels rn");
-                    let mut bb = BasicBlock::default(id.clone());
+                    let mut bb = BasicBlock::default(*id);
                     *id += 1;
                     if result.is_empty() {
                         bb.func = Some(f.clone());
-                    } else {
                     }
                     bb.instrs.push(f.instrs[i].clone());
 
@@ -149,6 +150,7 @@ impl BasicBlock {
                                     break;
                                 }
                             }
+                            // TODO: Handle doubly labels by explicitly add pred
                             InstructionOrLabel::Label(_) => {
                                 panic!("Cannot handle doubly labels rn")
                             }
@@ -180,7 +182,7 @@ impl CFG {
         for bb in simple_basic_blocks_vec_from_function {
             let bb_clone = bb.clone();
             hm.insert(
-                bb_clone.borrow().instrs.first().clone().unwrap().clone(),
+                bb_clone.borrow().instrs.first().unwrap().clone(),
                 bb.clone(),
             );
         }
@@ -197,17 +199,14 @@ impl CFG {
             let simple_basic_blocks_vec_from_function =
                 BasicBlock::simple_basic_blocks_vec_from_function(func, &mut basic_block_counter);
             for bb in simple_basic_blocks_vec_from_function {
-                hm.insert(
-                    bb.borrow().instrs.first().clone().unwrap().clone(),
-                    bb.clone(),
-                );
+                hm.insert(bb.borrow().instrs.first().unwrap().clone(), bb.clone());
             }
         }
 
         // Iterate to connect them
         for i in hm.values() {
             let mut bi = i.borrow_mut();
-            if bi.instrs.len() >= 1 {
+            if !bi.instrs.is_empty() {
                 match bi.instrs.clone().last() {
                     Some(i) => match i {
                         InstructionOrLabel::Label(_) => {
@@ -274,10 +273,10 @@ impl CFG {
             let visit_bb = q.pop_front().unwrap();
 
             vec_instr.extend(visit_bb.borrow().instrs.clone());
-            visited.insert(visit_bb.borrow().instrs.first().clone().unwrap().clone());
+            visited.insert(visit_bb.borrow().instrs.first().unwrap().clone());
 
             for pred in visit_bb.borrow().predecessors.iter() {
-                let a = pred.borrow().instrs.first().clone().unwrap().clone();
+                let a = pred.borrow().instrs.first().unwrap().clone();
                 if !visited.contains(&a) {
                     q.push_back(pred.clone());
                 }
