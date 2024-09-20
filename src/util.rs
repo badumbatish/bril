@@ -34,6 +34,7 @@ pub struct BasicBlock {
     func: Option<Function>,
     id: u32,
     instrs: Vec<InstructionOrLabel>,
+    facts: Vec<HashSet<(String, String)>>,
     predecessors: Vec<Rc<RefCell<BasicBlock>>>,
     successors: Vec<Rc<RefCell<BasicBlock>>>,
 }
@@ -71,6 +72,7 @@ impl BasicBlock {
             instrs: Vec::new(),
             predecessors: Vec::new(),
             successors: Vec::new(),
+            facts: Vec::new(),
         }
     }
 
