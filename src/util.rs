@@ -1,7 +1,12 @@
 use core::panic;
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    clone,
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    rc::Rc,
+};
 
-use crate::bril_syntax::{Function, InstructionOrLabel, Program};
+use crate::bril_syntax::{Function, Instruction, InstructionOrLabel, Label, Program};
 
 #[derive(Hash, Debug, Eq, PartialEq, Clone)]
 pub enum Leader {
@@ -9,9 +14,23 @@ pub enum Leader {
     InstructionOrLabel(InstructionOrLabel),
 }
 
+impl Leader {
+    pub fn from_label_string(label: String) -> Self {
+        Self::InstructionOrLabel(InstructionOrLabel::Label(Label { label }))
+    }
+
+    pub fn from_label(label: Label) -> Self {
+        Self::InstructionOrLabel(InstructionOrLabel::Label(label))
+    }
+
+    pub fn from_instr_or_label(instr: InstructionOrLabel) -> Self {
+        Self::InstructionOrLabel(instr)
+    }
+}
+
 #[derive(Debug)]
 pub struct BasicBlock {
-    leader: Option<Leader>,
+    func: Option<Function>,
     id: u32,
     instrs: Vec<InstructionOrLabel>,
     predecessors: Vec<Rc<RefCell<BasicBlock>>>,
@@ -22,9 +41,7 @@ impl std::fmt::Display for BasicBlock {
         write!(
             f,
             "----Basic Block----
-----Leader: {:?}
 ----Instructions: \n",
-            self.leader,
         )
         .unwrap();
         for instr in self.instrs.iter() {
@@ -48,13 +65,14 @@ impl BasicBlock {
     }
     pub fn default(id: u32) -> BasicBlock {
         Self {
-            leader: None,
+            func: None,
             id: id,
             instrs: Vec::new(),
             predecessors: Vec::new(),
             successors: Vec::new(),
         }
     }
+
     pub fn simple_basic_blocks_vec_from_function(
         f: Function,
         id: &mut u32,
@@ -67,31 +85,27 @@ impl BasicBlock {
                 // this match only happens if instruction is at start of function or after a branch
                 // without label
                 InstructionOrLabel::Instruction(_) => {
-                    let bb = Rc::new(RefCell::new(BasicBlock::default(id.clone())));
+                    let mut bb = BasicBlock::default(id.clone());
                     *id += 1;
-                    let bb_clone = bb.clone();
-                    let mut bb_br = bb_clone.borrow_mut();
                     if result.is_empty() {
-                        let function_name = Leader::FunctionName(f.clone());
-                        bb_br.leader = Some(function_name);
+                        bb.func = Some(f.clone());
                     } else {
-                        bb_br.leader = Some(Leader::InstructionOrLabel(f.instrs[i].clone()));
-                        result
-                            .last()
-                            .unwrap()
-                            .borrow_mut()
-                            .successors
-                            .push(bb.clone());
-                        if let InstructionOrLabel::Instruction(ins) = &f.instrs[i - 1] {
-                            if !ins.is_nonlinear() {
-                                bb_br.predecessors.push(result.last().unwrap().clone());
-                            }
-                        }
+                        //result
+                        //    .last()
+                        //    .unwrap()
+                        //    .borrow_mut()
+                        //    .successors
+                        //    .push(bb.clone());
+                        //if let InstructionOrLabel::Instruction(ins) = &f.instrs[i - 1] {
+                        //    if !ins.is_nonlinear() {
+                        //        bb_br.predecessors.push(result.last().unwrap().clone());
+                        //    }
+                        //}
 
                         // panic!("I don't know how to handle this case of instruction happenning after a non-linear without label");
                     }
 
-                    bb_br.instrs.push(f.instrs[i].clone());
+                    bb.instrs.push(f.instrs[i].clone());
                     i += 1;
                     loop {
                         if i >= f.instrs.len() {
@@ -99,10 +113,9 @@ impl BasicBlock {
                         }
                         match &f.instrs[i] {
                             InstructionOrLabel::Instruction(instr) => {
-                                bb_br
-                                    .instrs
+                                bb.instrs
                                     .push(InstructionOrLabel::Instruction(instr.clone()));
-                                if instr.is_nonlinear() {
+                                if instr.is_jmp() || instr.is_br() {
                                     break;
                                 }
                             }
@@ -111,22 +124,38 @@ impl BasicBlock {
                         i += 1;
                     }
 
-                    result.push(bb);
+                    result.push(Rc::<RefCell<BasicBlock>>::new(bb.into()));
                 }
-                InstructionOrLabel::Label(_lb) => {
-                    panic!("Cannot handle labels rn");
-                    // let mut bb = BasicBlock::default();
-                    // bb.leader = Leader::InstructionOrLabel(InstructionOrLabel::Label(lb.clone()));
-                    // bb.instrs.push(f.instrs[i].clone());
-                    //
-                    // i += 1;
-                    // loop {
-                    //     match &f.instrs[i] {
-                    //         InstructionOrLabel::Instruction(_) => {}
-                    //         InstructionOrLabel::Label(_) => {}
-                    //     }
-                    // }
-                    // continue;
+                InstructionOrLabel::Label(lb) => {
+                    //panic!("Cannot handle labels rn");
+                    let mut bb = BasicBlock::default(id.clone());
+                    *id += 1;
+                    if result.is_empty() {
+                        bb.func = Some(f.clone());
+                    } else {
+                    }
+                    bb.instrs.push(f.instrs[i].clone());
+
+                    i += 1;
+                    loop {
+                        if i >= f.instrs.len() {
+                            break;
+                        }
+                        match &f.instrs[i] {
+                            InstructionOrLabel::Instruction(instr) => {
+                                bb.instrs
+                                    .push(InstructionOrLabel::Instruction(instr.clone()));
+                                if instr.is_jmp() || instr.is_br() {
+                                    break;
+                                }
+                            }
+                            InstructionOrLabel::Label(_) => {
+                                panic!("Cannot handle doubly labels rn")
+                            }
+                        }
+                        i += 1;
+                    }
+                    result.push(Rc::<RefCell<BasicBlock>>::new(bb.into()));
                 }
             }
             i += 1;
@@ -136,35 +165,81 @@ impl BasicBlock {
 }
 #[derive(Debug)]
 pub struct CFG {
-    pub hm: HashMap<u32, Rc<RefCell<BasicBlock>>>,
+    pub hm: HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>>,
 }
 // main:
 // @main
 impl CFG {
-    pub fn hm_from_function(f: Function) -> HashMap<Leader, Rc<RefCell<BasicBlock>>> {
+    pub fn hm_from_function(f: Function) -> HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>> {
         // O(n)
-        let mut hm = HashMap::<Leader, Rc<RefCell<BasicBlock>>>::new();
+        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
 
         let mut basic_block_counter = 0;
         let simple_basic_blocks_vec_from_function =
             BasicBlock::simple_basic_blocks_vec_from_function(f, &mut basic_block_counter);
         for bb in simple_basic_blocks_vec_from_function {
             let bb_clone = bb.clone();
-            hm.insert(bb_clone.borrow().leader.clone().unwrap(), bb.clone());
+            hm.insert(
+                bb_clone.borrow().instrs.first().clone().unwrap().clone(),
+                bb.clone(),
+            );
         }
 
         hm
         // O(n)
     }
     pub fn from_program(p: Program) -> Self {
-        let mut hm = HashMap::<u32, Rc<RefCell<BasicBlock>>>::new();
+        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
 
         let mut basic_block_counter = 0;
+        // Iterate to put basic blocks into the graph
         for func in p.functions {
             let simple_basic_blocks_vec_from_function =
                 BasicBlock::simple_basic_blocks_vec_from_function(func, &mut basic_block_counter);
             for bb in simple_basic_blocks_vec_from_function {
-                hm.insert(bb.borrow().id.clone(), bb.clone());
+                hm.insert(
+                    bb.borrow().instrs.first().clone().unwrap().clone(),
+                    bb.clone(),
+                );
+            }
+        }
+
+        // Iterate to connect them
+        for i in hm.values() {
+            let mut bi = i.borrow_mut();
+            if bi.instrs.len() >= 1 {
+                match bi.instrs.clone().last() {
+                    Some(i) => match i {
+                        InstructionOrLabel::Label(_) => {
+                            eprintln!("This should not happen in CFG::from_program")
+                        }
+                        InstructionOrLabel::Instruction(ins) => {
+                            if ins.is_br() {
+                                eprintln!("{:?}", ins.labels.clone().unwrap()[0].clone());
+                                bi.predecessors.push(
+                                    hm[&InstructionOrLabel::from(
+                                        ins.labels.clone().unwrap()[1].clone(),
+                                    )]
+                                        .clone(),
+                                );
+                                bi.predecessors.push(
+                                    hm[&InstructionOrLabel::from(
+                                        ins.labels.clone().unwrap()[0].clone(),
+                                    )]
+                                        .clone(),
+                                );
+                            } else if ins.is_jmp() {
+                                bi.predecessors.push(
+                                    hm[&InstructionOrLabel::from(
+                                        ins.labels.clone().unwrap()[0].clone(),
+                                    )]
+                                        .clone(),
+                                );
+                            }
+                        }
+                    },
+                    None => continue,
+                }
             }
         }
 
@@ -178,12 +253,41 @@ impl CFG {
         };
 
         for i in self.hm.iter() {
-            match i.1.borrow().leader.as_ref().unwrap() {
-                Leader::FunctionName(func) => p.functions.push(func.clone()),
-                Leader::InstructionOrLabel(_) => continue,
+            match &i.1.borrow().func {
+                Some(_) => p.functions.push(self.insert_instr_func(i.1.clone())),
+                None => continue,
             }
         }
+
         p
+    }
+
+    fn insert_instr_func(&self, bb: Rc<RefCell<BasicBlock>>) -> Function {
+        let mut visited = HashSet::<InstructionOrLabel>::default();
+
+        let mut q = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
+
+        let mut vec_instr = Vec::<InstructionOrLabel>::new();
+        q.push_back(bb.clone());
+
+        while !q.is_empty() {
+            let visit_bb = q.pop_front().unwrap();
+
+            vec_instr.extend(visit_bb.borrow().instrs.clone());
+            visited.insert(visit_bb.borrow().instrs.first().clone().unwrap().clone());
+
+            for pred in visit_bb.borrow().predecessors.iter() {
+                let a = pred.borrow().instrs.first().clone().unwrap().clone();
+                if !visited.contains(&a) {
+                    q.push_back(pred.clone());
+                }
+            }
+        }
+
+        let mut func = bb.borrow().func.clone().unwrap().clone();
+        func.instrs = vec_instr;
+
+        func
     }
 
     pub fn print_hm(self) {

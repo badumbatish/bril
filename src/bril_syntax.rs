@@ -38,6 +38,8 @@ pub struct Instruction {
     pub value: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub funcs: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub labels: Option<Vec<String>>,
     #[serde(flatten)]
     pub other_fields: Value, // Store unknown fields here
 }
@@ -67,6 +69,17 @@ impl InstructionOrLabel {
             InstructionOrLabel::Label(lb) => lb.label.clone(),
             InstructionOrLabel::Instruction(ins) => ins.to_string(),
         }
+    }
+}
+
+impl From<Label> for InstructionOrLabel {
+    fn from(lb: Label) -> Self {
+        Self::Label(lb)
+    }
+}
+impl From<String> for InstructionOrLabel {
+    fn from(lb: String) -> Self {
+        Self::Label(Label { label: lb })
     }
 }
 #[derive(Serialize, Deserialize, Debug, Hash, Clone, PartialEq, Eq)]
