@@ -4,7 +4,7 @@ use std::{
 };
 
 use serde_derive::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 #[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -167,6 +167,11 @@ impl Instruction {
             self.op.as_str(),
             "print" | "call" | "alloc" | "free" | "store" | "ret"
         )
+    }
+
+    pub fn to_const_int(&mut self, i: u64) {
+        self.op = "const".to_string();
+        self.value = Some(json!(i));
     }
 
     /// this is for graphviz dot

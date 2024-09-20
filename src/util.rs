@@ -30,15 +30,21 @@ use crate::bril_syntax::{Function, InstructionOrLabel, Label, Program};
 //}
 
 #[derive(Debug)]
-pub struct BasicBlock {
+pub struct BasicBlock<T> {
     func: Option<Function>,
     id: u32,
-    instrs: Vec<InstructionOrLabel>,
-    facts: Vec<HashSet<(String, String)>>,
-    predecessors: Vec<Rc<RefCell<BasicBlock>>>,
-    successors: Vec<Rc<RefCell<BasicBlock>>>,
+    pub instrs: Vec<InstructionOrLabel>,
+    pub facts: HashMap<String, T>,
+    pub predecessors: Vec<Rc<RefCell<BasicBlock<T>>>>,
+    pub successors: Vec<Rc<RefCell<BasicBlock<T>>>>,
 }
-impl std::fmt::Display for BasicBlock {
+
+#[derive(PartialEq)]
+pub enum TransferResult {
+    CHANGED,
+    NonChanged,
+}
+impl<T: std::fmt::Debug> std::fmt::Display for BasicBlock<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -60,27 +66,28 @@ impl std::fmt::Display for BasicBlock {
         writeln!(f, "\n")
     }
 }
-impl BasicBlock {
+
+impl<FactType> BasicBlock<FactType> {
     pub fn as_txt_instructions(self) -> String {
         let _result = String::new();
         todo!()
     }
-    pub fn default(id: u32) -> BasicBlock {
+    pub fn default(id: u32) -> BasicBlock<FactType> {
         Self {
             func: None,
             id,
             instrs: Vec::new(),
             predecessors: Vec::new(),
             successors: Vec::new(),
-            facts: Vec::new(),
+            facts: HashMap::new(),
         }
     }
 
     pub fn simple_basic_blocks_vec_from_function(
         f: Function,
         id: &mut u32,
-    ) -> Vec<Rc<RefCell<BasicBlock>>> {
-        let mut result: Vec<Rc<RefCell<BasicBlock>>> = Vec::new();
+    ) -> Vec<Rc<RefCell<BasicBlock<FactType>>>> {
+        let mut result: Vec<Rc<RefCell<BasicBlock<FactType>>>> = Vec::new();
         let mut i = 0;
         // let mut last_instruction_before_construction = 0;
         while i < f.instrs.len() {
@@ -128,7 +135,7 @@ impl BasicBlock {
                         i += 1;
                     }
 
-                    result.push(Rc::<RefCell<BasicBlock>>::new(bb.into()));
+                    result.push(Rc::<RefCell<BasicBlock<FactType>>>::new(bb.into()));
                 }
                 InstructionOrLabel::Label(lb) => {
                     //panic!("Cannot handle labels rn");
@@ -159,7 +166,7 @@ impl BasicBlock {
                         }
                         i += 1;
                     }
-                    result.push(Rc::<RefCell<BasicBlock>>::new(bb.into()));
+                    result.push(Rc::<RefCell<BasicBlock<FactType>>>::new(bb.into()));
                 }
             }
             i += 1;
@@ -168,15 +175,17 @@ impl BasicBlock {
     }
 }
 #[derive(Debug)]
-pub struct CFG {
-    pub hm: HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>>,
+pub struct CFG<T> {
+    pub hm: HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock<T>>>>,
 }
 // main:
 // @main
-impl CFG {
-    pub fn hm_from_function(f: Function) -> HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>> {
+impl<T: std::fmt::Debug> CFG<T> {
+    pub fn hm_from_function(
+        f: Function,
+    ) -> HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock<T>>>> {
         // O(n)
-        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
+        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock<T>>>>::new();
 
         let mut basic_block_counter = 0;
         let simple_basic_blocks_vec_from_function =
@@ -193,7 +202,7 @@ impl CFG {
         // O(n)
     }
     pub fn from_program(p: Program) -> Self {
-        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
+        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock<T>>>>::new();
 
         let mut basic_block_counter = 0;
         // Iterate to put basic blocks into the graph
@@ -210,25 +219,38 @@ impl CFG {
             let mut bi = i.borrow_mut();
             if !bi.instrs.is_empty() {
                 match bi.instrs.clone().last() {
-                    Some(i) => match i {
+                    Some(instr) => match instr {
                         InstructionOrLabel::Label(_) => {
                             eprintln!("This should not happen in CFG::from_program")
                         }
                         InstructionOrLabel::Instruction(ins) => {
                             if ins.is_br() {
                                 eprintln!("{:?}", ins.labels.clone().unwrap()[0].clone());
-                                bi.predecessors.push(
+                                bi.successors.push(
                                     hm[&InstructionOrLabel::from(
                                         ins.labels.clone().unwrap()[1].clone(),
                                     )]
                                         .clone(),
                                 );
-                                bi.predecessors.push(
+                                bi.successors.push(
                                     hm[&InstructionOrLabel::from(
                                         ins.labels.clone().unwrap()[0].clone(),
                                     )]
                                         .clone(),
                                 );
+
+                                hm[&InstructionOrLabel::from(
+                                    ins.labels.clone().unwrap()[1].clone(),
+                                )]
+                                    .borrow_mut()
+                                    .predecessors
+                                    .push(i.clone());
+                                hm[&InstructionOrLabel::from(
+                                    ins.labels.clone().unwrap()[0].clone(),
+                                )]
+                                    .borrow_mut()
+                                    .predecessors
+                                    .push(i.clone());
                             } else if ins.is_jmp() {
                                 bi.predecessors.push(
                                     hm[&InstructionOrLabel::from(
@@ -263,10 +285,10 @@ impl CFG {
         p
     }
 
-    fn insert_instr_func(&self, bb: Rc<RefCell<BasicBlock>>) -> Function {
+    fn insert_instr_func(&self, bb: Rc<RefCell<BasicBlock<T>>>) -> Function {
         let mut visited = HashSet::<InstructionOrLabel>::default();
 
-        let mut q = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
+        let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
 
         let mut vec_instr = Vec::<InstructionOrLabel>::new();
         q.push_back(bb.clone());
@@ -277,10 +299,10 @@ impl CFG {
             vec_instr.extend(visit_bb.borrow().instrs.clone());
             visited.insert(visit_bb.borrow().instrs.first().unwrap().clone());
 
-            for pred in visit_bb.borrow().predecessors.iter() {
-                let a = pred.borrow().instrs.first().unwrap().clone();
+            for succ in visit_bb.borrow().successors.iter() {
+                let a = succ.borrow().instrs.first().unwrap().clone();
                 if !visited.contains(&a) {
-                    q.push_back(pred.clone());
+                    q.push_back(succ.clone());
                 }
             }
         }
@@ -294,7 +316,45 @@ impl CFG {
     pub fn print_hm(self) {
         for i in self.hm.iter() {
             eprintln!("{:?}", i.0);
-            eprintln!("{}", i.1.borrow_mut())
+            eprintln!("{:?}", i.1.borrow())
+        }
+    }
+
+    pub fn dataflow_forward(
+        &self,
+        meet_func: fn(&mut BasicBlock<T>),
+        transfer_func: fn(&mut BasicBlock<T>) -> TransferResult,
+        optimize_func: fn(&mut BasicBlock<T>),
+    ) {
+        // do the dataflow
+        //
+        //
+        for i in self.hm.iter() {
+            match &i.1.borrow().func {
+                Some(_) => {
+                    let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
+                    q.push_back(i.1.clone());
+                    while let Some(visit_bb) = q.pop_front() {
+                        let mut changed = false;
+                        {
+                            // let mut b = visit_bb.borrow_mut();
+                            // meet_func(&mut b);
+                            // changed = transfer_func(&mut b) == TransferResult::CHANGED;
+                        }
+                        if changed {
+                            let successors = visit_bb.borrow().successors.clone();
+                            for succ in successors {
+                                q.push_back(succ);
+                            }
+                        }
+                    }
+                }
+                None => continue,
+            }
+        }
+
+        for i in self.hm.iter() {
+            optimize_func(&mut i.1.borrow_mut())
         }
     }
 
