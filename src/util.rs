@@ -1,6 +1,6 @@
 use core::panic;
 use std::{
-    cell::RefCell,
+    cell::{RefCell, RefMut},
     collections::{HashMap, HashSet, VecDeque},
     rc::Rc,
 };
@@ -320,36 +320,37 @@ impl<T: std::fmt::Debug> CFG<T> {
         }
     }
 
-    pub fn dataflow_forward(
+    pub fn dataflow_forward<F1, F2, F3>(
         &self,
-        meet_func: fn(&mut BasicBlock<T>),
-        transfer_func: fn(&mut BasicBlock<T>) -> TransferResult,
-        optimize_func: fn(&mut BasicBlock<T>),
-    ) {
+        mut meet_func: F1,
+        mut transfer_func: F2,
+        mut optimize_func: F3,
+    ) where
+        F1: FnMut(&mut BasicBlock<T>),
+        F2: FnMut(&mut BasicBlock<T>) -> TransferResult,
+        F3: FnMut(&mut BasicBlock<T>),
+    {
         // do the dataflow
         //
         //
-        for i in self.hm.iter() {
-            match &i.1.borrow().func {
-                Some(_) => {
-                    let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
-                    q.push_back(i.1.clone());
-                    while let Some(visit_bb) = q.pop_front() {
-                        let mut changed = false;
-                        {
-                            // let mut b = visit_bb.borrow_mut();
-                            // meet_func(&mut b);
-                            // changed = transfer_func(&mut b) == TransferResult::CHANGED;
-                        }
-                        if changed {
-                            let successors = visit_bb.borrow().successors.clone();
-                            for succ in successors {
-                                q.push_back(succ);
-                            }
-                        }
-                    }
+        let mut counter = 1;
+        let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
+        for i in self.hm.clone() {
+            eprintln!("{}", counter);
+            counter += 1;
+            if let Some(_) = &i.1.borrow_mut().func {
+                q.push_back(i.1.clone());
+            }
+            while !q.is_empty() {
+                let mut visit_bb = q.pop_front().expect("hi").clone();
+                let mut changed = false;
+                // visit_bb.borrow_mut();
+                meet_func(&mut visit_bb.borrow_mut());
+
+                changed = transfer_func(&mut visit_bb.borrow_mut()) == TransferResult::CHANGED;
+                if changed {
+                    q.extend(visit_bb.borrow_mut().successors.clone());
                 }
-                None => continue,
             }
         }
 
