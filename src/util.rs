@@ -3,7 +3,6 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     fmt::Debug,
     rc::Rc,
-    result,
 };
 
 use crate::bril_syntax::{Function, InstructionOrLabel, Program};
@@ -42,8 +41,15 @@ pub struct BasicBlock<T> {
 
 #[derive(PartialEq)]
 pub enum TransferResult {
-    CHANGED,
+    Changed,
     NonChanged,
+}
+#[derive(PartialEq)]
+pub enum ConditionalTransferResult {
+    AllPathTaken,
+    FirstPathTaken,
+    SecondPathTaken,
+    NoPathTaken,
 }
 impl<T: std::fmt::Debug> std::fmt::Display for BasicBlock<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -310,7 +316,51 @@ impl<T: std::fmt::Debug> CFG<T> {
             eprintln!("{:?}", i.1.borrow())
         }
     }
+    pub fn dataflow_forward_optimistically<F1, F2, F3>(
+        &self,
+        mut meet_func: F1,
+        mut transfer_func: F2,
+        mut optimize_func: F3,
+    ) where
+        F1: FnMut(&mut BasicBlock<T>),
+        F2: FnMut(&mut BasicBlock<T>) -> ConditionalTransferResult,
+        F3: FnMut(&mut BasicBlock<T>),
+    {
+        // do the dataflow optimistically
+        //
+        //
+        let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
+        for i in self.hm.clone() {
+            if i.1.borrow_mut().func.is_some() {
+                q.push_back(i.1.clone());
+            }
+            while !q.is_empty() {
+                let visit_bb = q.pop_front().expect("hi").clone();
+                // visit_bb.borrow_mut();
+                let s = visit_bb.borrow().instrs.first().clone().unwrap().clone();
+                meet_func(&mut visit_bb.borrow_mut());
 
+                let transfer_result = transfer_func(&mut visit_bb.borrow_mut());
+                match transfer_result {
+                    ConditionalTransferResult::AllPathTaken => {
+                        q.extend(visit_bb.borrow_mut().successors.clone())
+                    }
+                    ConditionalTransferResult::FirstPathTaken => {
+                        eprintln!("First path taken, from {}", s);
+                        q.push_back(visit_bb.borrow_mut().successors[0].clone())
+                    }
+                    ConditionalTransferResult::SecondPathTaken => {
+                        q.push_back(visit_bb.borrow_mut().successors[1].clone())
+                    }
+                    ConditionalTransferResult::NoPathTaken => continue,
+                };
+            }
+        }
+
+        for i in self.hm.iter() {
+            optimize_func(&mut i.1.borrow_mut())
+        }
+    }
     pub fn dataflow_forward<F1, F2, F3>(
         &self,
         mut meet_func: F1,
@@ -334,7 +384,7 @@ impl<T: std::fmt::Debug> CFG<T> {
                 // visit_bb.borrow_mut();
                 meet_func(&mut visit_bb.borrow_mut());
 
-                if transfer_func(&mut visit_bb.borrow_mut()) == TransferResult::CHANGED {
+                if transfer_func(&mut visit_bb.borrow_mut()) == TransferResult::Changed {
                     q.extend(visit_bb.borrow_mut().successors.clone());
                 }
             }
@@ -414,174 +464,5 @@ impl<T: std::fmt::Debug> CFG<T> {
     //    result
     //}
     //
-    //fn make_rel_from_block(bb: Rc<RefCell<BasicBlock>>) -> String {
-    //    let mut result = String::from(Self::make_node_name(bb.borrow().id) + "-> { ");
     //
-    //    for pred in &bb.borrow().predecessors {
-    //        result += &(Self::make_node_name(pred.borrow().id) + &" ".to_string());
-    //    }
-    //
-    //    for succ in &bb.borrow().successors {
-    //        result += &(Self::make_node_name(succ.borrow().id) + &" ".to_string());
-    //    }
-    //    result += " }\n";
-    //    result
-    //}
 }
-
-////#[derive(Debug)]
-////struct Instruction {
-////    op: String,
-////    args: Vec<String>,
-////}
-//
-//type Label = String;
-//#[derive(Debug)]
-//struct BasicBlock {
-//    entry_label: String,
-//    instrs: Vec<Instruction>,
-//    predecessors: Vec<RefCell<BasicBlock>>, // TODO: needed for cyclic CFGs?
-//    successors: Vec<RefCell<BasicBlock>>,
-//}
-//
-//impl BasicBlock {
-//    fn new_from_parents(parent_block: RefCell<BasicBlock>) {}
-//    fn new_as_entrance() -> Self {
-//        BasicBlock {
-//            entry_label: "".to_string(),
-//            instrs: Vec::new(),
-//            predecessors: Vec::new(),
-//            successors: Vec::new(),
-//        }
-//    }
-//    //fn vec_from(func: &Function) {
-//    //    let first_block = BasicBlock::new(func.name);
-//    //}
-//    // fn add_predecessor(&mut self, pred: String) {
-//    //     self.predecessors.push(pred);
-//    // }
-//}
-//
-//#[derive(Debug)]
-//struct CFG {
-//    function: Function,
-//    basic_blocks: Vec<BasicBlock>,
-//    entry_block: BasicBlock,
-//}
-//
-//fn generate_set_of_blocks(p: Program) {
-//    let basicblock_map = HashMap::<Label, BasicBlock>::default();
-//    for func in p.functions {
-//        let basic_blocks = BasicBlock::vec_from(&func);
-//        basicblock_map.insert
-//    }
-//}
-//impl CFG {
-//    fn new(function: String, instructions: Vec<Instruction>) -> Self {
-//        let mut basic_blocks = Vec::new();
-//
-//        let mut future_blocks = Vec::new();
-//
-//        basic_blocks.push(BasicBlock::new("ENTRY".to_string(), Vec::new()));
-//        let entry_block = &mut basic_blocks[0];
-//        let mut curr_block = Some(entry_block);
-//
-//        for inst in instructions {
-//            if let Some(op) = inst.op.as_str() {
-//                if BRANCH_INSTRUCTIONS.contains(&op) {
-//                    curr_block.instrs.push(inst);
-//
-//                    // control flow aaaa
-//                    {
-//                        if op == "jmp" {
-//                            let succ = BasicBlock::new(inst.args[0].clone(), Vec::new());
-//                            curr_block.successors.push(succ);
-//                            basic_blocks.push(succ);
-//                            curr_block = &mut succ;
-//                        } else if op == "br" {
-//                            let left = BasicBlock::new(inst.args[1].clone(), Vec::new());
-//                            let right = BasicBlock::new(inst.args[2].clone(), Vec::new());
-//                            curr_block.successors.push(left);
-//                            curr_block.successors.push(right);
-//                            basic_blocks.push(left);
-//                            basic_blocks.push(right);
-//                            future_blocks.push((left, inst.args[0].clone()));
-//                            future_blocks.push((right, inst.args[0].clone()));
-//                        } else if op == "call" {
-//                            basic_blocks
-//                                .last_mut()
-//                                .unwrap()
-//                                .successors
-//                                .push(inst.args[0].clone());
-//                        } else if op == "ret" {
-//                            basic_blocks
-//                                .last_mut()
-//                                .unwrap()
-//                                .successors
-//                                .push("EXIT".to_string());
-//                        }
-//                    }
-//                    curr_instrs.clear();
-//                }
-//            } else if let Some(label) = inst.label.as_ref() {
-//                if !curr_instrs.is_empty() {
-//                    basic_blocks.push(BasicBlock::new(entry_label.clone(), curr_instrs.clone()));
-//                    curr_instrs.clear();
-//                }
-//                entry_label = label.clone();
-//            }
-//        }
-//
-//        // Handle any remaining instructions
-//        if !curr_instrs.is_empty() {
-//            basic_blocks.push(BasicBlock::new(entry_label, curr_instrs));
-//        }
-//
-//        CFG {
-//            function,
-//            basic_blocks,
-//            entry_block,
-//            exit_block,
-//        }
-//    }
-//}
-//
-//
-//impl std::fmt::Display for CFG {
-//    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//        for bb in &self.basic_blocks {
-//            writeln!(f, "{}", bb)?;
-//        }
-//        Ok(())
-//    }
-//}
-//
-//// Example usage
-//fn main() {
-//    //let function_name = "example_function".to_string();
-//    //let instructions = vec![
-//    //    Instruction {
-//    //        op: "label".to_string(),
-//    //        args: vec!["start".to_string()],
-//    //    },
-//    //    Instruction {
-//    //        op: "add".to_string(),
-//    //        args: vec!["a".to_string(), "b".to_string()],
-//    //    },
-//    //    Instruction {
-//    //        op: "jmp".to_string(),
-//    //        args: vec!["end".to_string()],
-//    //    },
-//    //    Instruction {
-//    //        op: "label".to_string(),
-//    //        args: vec!["end".to_string()],
-//    //    },
-//    //    Instruction {
-//    //        op: "ret".to_string(),
-//    //        args: vec![],
-//    //    },
-//    //];
-//
-//    //let cfg = CFG::new(function_name, instructions);
-//    //println!("Control Flow Graph:\n{}", cfg);
-//}

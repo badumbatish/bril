@@ -131,6 +131,9 @@ impl Instruction {
     pub fn is_gt(&self) -> bool {
         &self.op == "gt"
     }
+    pub fn is_ge(&self) -> bool {
+        &self.op == "ge"
+    }
     pub fn is_le(&self) -> bool {
         &self.op == "le"
     }

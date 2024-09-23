@@ -1,3 +1,5 @@
+# This test tests the optimistic approach described in the paper
+# RUN: cat %s | bril2json | ../target/debug/optimistic_const_prop| grep -v "id j"
 @main {
   i: int = const 1;
   j: int = const 0;

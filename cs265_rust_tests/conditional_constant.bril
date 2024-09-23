@@ -1,0 +1,15 @@
+# RUN: cat %s | bril2json | ../target/debug/optimistic_const_prop| grep -v "add i j"
+@if_else_block_1{
+    i : int = const 1;
+    zero : int = const 0;
+    b : bool = gt i zero;
+    br b .else .if_start;
+.if_start:
+    j: int = const 2;
+    jmp .finish;
+.else:
+    j: int = const 3;
+.finish:
+    z: int = add i j;
+    ret;
+}

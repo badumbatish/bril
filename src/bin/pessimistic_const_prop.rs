@@ -11,7 +11,6 @@ pub enum LatticeValue {
 /// Combine lattice value based on the lattice value type
 /// This is called in a meet function on each instruction
 pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) -> LatticeValue {
-    
     // eprintln!("{:?} : {:?} : {:?}", meet_value, q, p);
     match (q, p) {
         (Some(a), Some(b)) => match (a, b) {
@@ -137,7 +136,7 @@ pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> TransferResult {
 
     match initial == bb.facts {
         true => TransferResult::NonChanged,
-        false => TransferResult::CHANGED,
+        false => TransferResult::Changed,
     }
 }
 
