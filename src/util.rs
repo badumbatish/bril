@@ -105,7 +105,7 @@ where
                 bb.borrow_mut().func = Some(f.clone());
             } else if !non_linear_before {
                 bb.borrow_mut()
-                    .successors
+                    .predecessors
                     .push(result.last().unwrap().clone());
                 result
                     .last_mut()
@@ -113,6 +113,7 @@ where
                     .borrow_mut()
                     .successors
                     .push(bb.clone());
+                non_linear_before = true;
             }
 
             let mut bb_mut = bb.borrow_mut();
@@ -277,20 +278,26 @@ impl<T: std::fmt::Debug> CFG<T> {
         let mut vec_instr = Vec::<InstructionOrLabel>::new();
         q.push_back(bb.clone());
 
+        visited.insert(bb.borrow().instrs.first().unwrap().clone());
+        let mut v = Vec::default();
+        v.push(bb.clone());
         while !q.is_empty() {
             let visit_bb = q.pop_front().unwrap();
 
-            vec_instr.extend(visit_bb.borrow().instrs.clone());
-            visited.insert(visit_bb.borrow().instrs.first().unwrap().clone());
-
-            for succ in visit_bb.borrow().successors.iter() {
+            for succ in visit_bb.borrow().successors.iter().rev() {
                 let a = succ.borrow().instrs.first().unwrap().clone();
                 if !visited.contains(&a) {
                     q.push_back(succ.clone());
+                    v.push(succ.clone());
+                    visited.insert(a);
                 }
             }
         }
+        v.sort_by_key(|bb| bb.borrow().id);
 
+        for bb in v {
+            vec_instr.extend(bb.borrow().instrs.clone());
+        }
         let mut func = bb.borrow().func.clone().unwrap().clone();
         func.instrs = vec_instr;
 

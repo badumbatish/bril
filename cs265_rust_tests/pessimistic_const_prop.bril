@@ -30,3 +30,32 @@
 .cond.finish:
  a : int = add one zero;
 }
+
+@if_else_block_2{
+  # int a = 30;
+  a: int = const 30;
+
+  # int b = 9 - (a / 5);
+  five: int = const 5;
+  div_result: int = div a five;
+  nine: int = const 9;
+  b: int = sub nine div_result;
+
+  # int c = b * 4;
+  four: int = const 4;
+  c: int = mul b four;
+
+  # if (c > 10) {
+  ten: int = const 10;
+  cond: bool = gt c ten;
+  br cond .if_body .end_if;
+.if_body:
+  # c = c - 10;
+  c: int = sub c ten;
+.end_if:
+  # return c * (60 / a);
+  sixty: int = const 60;
+  div_result2: int = div sixty a;
+  result: int = mul c div_result2;
+  ret result;
+}
