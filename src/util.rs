@@ -3,6 +3,7 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     fmt::Debug,
     rc::Rc,
+    result,
 };
 
 use crate::bril_syntax::{Function, InstructionOrLabel, Program};
@@ -272,7 +273,6 @@ impl<T: std::fmt::Debug> CFG<T> {
 
     fn insert_instr_func(&self, bb: Rc<RefCell<BasicBlock<T>>>) -> Function {
         let mut visited = HashSet::<InstructionOrLabel>::default();
-
         let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
 
         let mut vec_instr = Vec::<InstructionOrLabel>::new();
@@ -327,7 +327,7 @@ impl<T: std::fmt::Debug> CFG<T> {
         let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
         for i in self.hm.clone() {
             if i.1.borrow_mut().func.is_some() {
-                q.push_back(i.1.clone());
+                q.extend(Self::bfs_children(&mut i.1.clone()));
             }
             while !q.is_empty() {
                 let visit_bb = q.pop_front().expect("hi").clone();
@@ -343,6 +343,31 @@ impl<T: std::fmt::Debug> CFG<T> {
         for i in self.hm.iter() {
             optimize_func(&mut i.1.borrow_mut())
         }
+    }
+
+    fn dfs_children(bb: &mut BasicBlock<T>) {}
+    fn bfs_children(bb: &mut Rc<RefCell<BasicBlock<T>>>) -> VecDeque<Rc<RefCell<BasicBlock<T>>>> {
+        let mut visited = HashSet::<InstructionOrLabel>::default();
+        let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
+        let mut result = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
+
+        q.push_back(bb.clone());
+        result.push_back(bb.clone());
+
+        visited.insert(bb.borrow().instrs.first().unwrap().clone());
+        while !q.is_empty() {
+            let visit_bb = q.pop_front().unwrap();
+            result.push_back(visit_bb.clone());
+            for succ in visit_bb.borrow().successors.iter().rev() {
+                let a = succ.borrow().instrs.first().unwrap().clone();
+                if !visited.contains(&a) {
+                    q.push_back(succ.clone());
+                    visited.insert(a);
+                }
+            }
+        }
+
+        result
     }
 
     //pub fn to_dot_string(&self) -> String {
