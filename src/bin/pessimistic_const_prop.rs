@@ -1,6 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use bril::bril_syntax::{BrilType, Instruction, InstructionOrLabel, Program};
+use bril::bril_syntax::{Instruction, InstructionOrLabel, Program};
 use bril::util::{BasicBlock, TransferResult, CFG};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
@@ -17,7 +17,7 @@ pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) ->
             (LatticeValue::Constant(_), LatticeValue::Dominator) => LatticeValue::Dominator,
             (LatticeValue::Constant(c), LatticeValue::Constant(d)) => {
                 if c == d {
-                    LatticeValue::Constant(c.clone())
+                    LatticeValue::Constant(*c)
                 } else {
                     LatticeValue::Dominator
                 }
@@ -33,13 +33,13 @@ pub fn lattice_value_transfer(
     facts: &HashMap<String, LatticeValue>,
 ) -> Option<(String, LatticeValue)> {
     if instr.is_const() {
-        return Some((
+        Some((
             instr.clone().dest?,
             LatticeValue::Constant(
                 (serde_json::from_value(instr.value.clone().unwrap()))
                     .expect("Failed to parse value "),
             ),
-        ));
+        ))
     } else if instr.is_add() {
         let args = instr.args.clone().unwrap();
         let a = facts.get(&args[0]);
@@ -108,7 +108,6 @@ pub fn forward_meet(bb: &mut BasicBlock<LatticeValue>) {
 
 /// Transfer the facts in the block forwards
 pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> TransferResult {
-    let mut changed = TransferResult::NonChanged;
     let initial = bb.facts.clone();
     for instr_label in bb.instrs.clone() {
         if let InstructionOrLabel::Instruction(instr) = instr_label {
@@ -129,8 +128,7 @@ pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> TransferResult {
 pub fn transform(bb: &mut BasicBlock<LatticeValue>) {
     for instr_label in bb.instrs.iter_mut() {
         if let InstructionOrLabel::Instruction(instr) = instr_label {
-            if let Some((_, LatticeValue::Constant(c))) = lattice_value_transfer(&instr, &bb.facts)
-            {
+            if let Some((_, LatticeValue::Constant(c))) = lattice_value_transfer(instr, &bb.facts) {
                 instr.value =
                     Some(serde_json::to_value(c).expect("This should absolutely not failed"));
                 instr.args = None;
@@ -144,7 +142,7 @@ pub fn transform(bb: &mut BasicBlock<LatticeValue>) {
 fn main() {
     let prog = Program::stdin();
 
-    let mut cfg = CFG::from_program(prog);
+    let cfg = CFG::from_program(prog);
 
     cfg.dataflow_forward(forward_meet, forward_transfer, transform);
     let prog = cfg.to_program();

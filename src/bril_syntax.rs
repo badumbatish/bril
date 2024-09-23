@@ -63,11 +63,11 @@ pub enum InstructionOrLabel {
     Instruction(Instruction),
 }
 
-impl InstructionOrLabel {
-    pub fn to_string(&self) -> String {
+impl Display for InstructionOrLabel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            InstructionOrLabel::Label(lb) => lb.label.clone(),
-            InstructionOrLabel::Instruction(ins) => ins.to_string(),
+            InstructionOrLabel::Label(lb) => write!(f, "{}", lb.clone().label),
+            InstructionOrLabel::Instruction(ins) => write!(f, "{}", ins.clone().to_string()),
         }
     }
 }

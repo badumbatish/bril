@@ -1,12 +1,12 @@
 use core::panic;
 use std::{
-    cell::{RefCell, RefMut},
+    cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
     fmt::Debug,
     rc::Rc,
 };
 
-use crate::bril_syntax::{Function, InstructionOrLabel, Label, Program};
+use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 
 // Maybe this will be useful in the future but for now a leader is the first instruction in the
 // block
@@ -141,7 +141,7 @@ where
 
                     result.push(Rc::<RefCell<BasicBlock<FactType>>>::new(bb.into()));
                 }
-                InstructionOrLabel::Label(lb) => {
+                InstructionOrLabel::Label(_) => {
                     //panic!("Cannot handle labels rn");
                     let mut bb = BasicBlock::default(*id);
                     *id += 1;
@@ -164,7 +164,7 @@ where
                                 }
                             }
                             // TODO: Handle doubly labels by explicitly add pred
-                            InstructionOrLabel::Label(lb) => {
+                            InstructionOrLabel::Label(_) => {
                                 i -= 1;
                                 break;
                             }
@@ -293,7 +293,7 @@ impl<T: std::fmt::Debug> CFG<T> {
         sorted_by_func_id.sort_by_key(|e| e.borrow().id);
 
         for i in sorted_by_func_id {
-            if let Some(_) = i.borrow().func {
+            if i.borrow().func.is_some() {
                 p.functions.push(self.insert_instr_func(i.clone()));
             }
         }
@@ -348,21 +348,17 @@ impl<T: std::fmt::Debug> CFG<T> {
         // do the dataflow
         //
         //
-        let mut counter = 1;
         let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
         for i in self.hm.clone() {
-            counter += 1;
-            if let Some(_) = &i.1.borrow_mut().func {
+            if i.1.borrow_mut().func.is_some() {
                 q.push_back(i.1.clone());
             }
             while !q.is_empty() {
-                let mut visit_bb = q.pop_front().expect("hi").clone();
-                let mut changed = false;
+                let visit_bb = q.pop_front().expect("hi").clone();
                 // visit_bb.borrow_mut();
                 meet_func(&mut visit_bb.borrow_mut());
 
-                changed = transfer_func(&mut visit_bb.borrow_mut()) == TransferResult::CHANGED;
-                if changed {
+                if transfer_func(&mut visit_bb.borrow_mut()) == TransferResult::CHANGED {
                     q.extend(visit_bb.borrow_mut().successors.clone());
                 }
             }
