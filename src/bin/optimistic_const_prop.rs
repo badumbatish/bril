@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bril::bril_syntax::{BrilType, Instruction, InstructionOrLabel, Program};
-use bril::util::{BasicBlock, ConditionalTransferResult, TransferResult, CFG};
+use bril::util::{BasicBlock, ConditionalTransferResult, CFG};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
     Dominator,
@@ -9,7 +9,6 @@ pub enum LatticeValue {
     ConstantInt(u64),
     ConstantBool(bool),
 }
-const DEAD_CODE: &str = "|DEAD_CODE|";
 /// Combine lattice value based on the lattice value type
 /// This is called in a meet function on each instruction
 pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) -> LatticeValue {
@@ -44,7 +43,7 @@ pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) ->
                     LatticeValue::Dominator
                 }
             }
-            (LatticeValue::ConstantBool(c), LatticeValue::ConstantInt(d)) => {
+            (LatticeValue::ConstantBool(_), LatticeValue::ConstantInt(_)) => {
                 LatticeValue::Dominator
             }
             (LatticeValue::Dominated, LatticeValue::Dominator) => LatticeValue::Dominator,
@@ -92,6 +91,16 @@ pub fn lattice_value_transfer(
                         .expect("Failed to parse value "),
                 ),
             ))
+        }
+    } else if instr.is_id() {
+        match facts.get(&instr.args.clone().unwrap()[0]) {
+            Some(LatticeValue::ConstantInt(c)) => {
+                Some((instr.clone().dest?, LatticeValue::ConstantInt(*c)))
+            }
+            Some(LatticeValue::ConstantBool(c)) => {
+                Some((instr.clone().dest?, LatticeValue::ConstantBool(*c)))
+            }
+            _ => None,
         }
     } else if instr.is_add() {
         let args = instr.args.clone().unwrap();
@@ -241,7 +250,7 @@ pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> ConditionalTransfe
 
     match bb.instrs.last() {
         Some(instr_lb) => match instr_lb {
-            InstructionOrLabel::Label(label) => ConditionalTransferResult::AllPathTaken,
+            InstructionOrLabel::Label(_) => ConditionalTransferResult::AllPathTaken,
             InstructionOrLabel::Instruction(instruction) => {
                 if instruction.is_br() {
                     match bb.facts.get(&instruction.args.clone().unwrap().clone()[0]) {

@@ -87,6 +87,11 @@ impl From<&Option<InstructionOrLabel>> for InstructionOrLabel {
         lb.clone().unwrap()
     }
 }
+impl From<Instruction> for InstructionOrLabel {
+    fn from(lb: Instruction) -> Self {
+        Self::Instruction(lb)
+    }
+}
 #[derive(Serialize, Deserialize, Debug, Hash, Clone, PartialEq, Eq)]
 pub struct Function {
     pub name: String,

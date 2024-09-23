@@ -337,7 +337,7 @@ impl<T: std::fmt::Debug> CFG<T> {
             while !q.is_empty() {
                 let visit_bb = q.pop_front().expect("hi").clone();
                 // visit_bb.borrow_mut();
-                let s = visit_bb.borrow().instrs.first().clone().unwrap().clone();
+                let s = visit_bb.borrow().instrs.first().unwrap().clone();
                 meet_func(&mut visit_bb.borrow_mut());
 
                 let transfer_result = transfer_func(&mut visit_bb.borrow_mut());
@@ -395,6 +395,39 @@ impl<T: std::fmt::Debug> CFG<T> {
         }
     }
 
+    pub fn dataflow_backward<F1, F2, F3>(
+        &self,
+        mut meet_func: F1,
+        mut transfer_func: F2,
+        mut optimize_func: F3,
+    ) where
+        F1: FnMut(&mut BasicBlock<T>),
+        F2: FnMut(&mut BasicBlock<T>) -> TransferResult,
+        F3: FnMut(&mut BasicBlock<T>),
+    {
+        // do the dataflow
+        //
+        //
+        let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
+        for i in self.hm.clone() {
+            if i.1.borrow_mut().func.is_some() {
+                q.extend(Self::bfs_children(&mut i.1.clone()));
+            }
+            while !q.is_empty() {
+                let visit_bb = q.pop_front().expect("hi").clone();
+                // visit_bb.borrow_mut();
+                meet_func(&mut visit_bb.borrow_mut());
+
+                if transfer_func(&mut visit_bb.borrow_mut()) == TransferResult::Changed {
+                    q.extend(visit_bb.borrow_mut().predecessors.clone());
+                }
+            }
+        }
+
+        for i in self.hm.iter() {
+            optimize_func(&mut i.1.borrow_mut())
+        }
+    }
     // fn dfs_children(bb: &mut BasicBlock<T>) {}
     fn bfs_children(bb: &mut Rc<RefCell<BasicBlock<T>>>) -> VecDeque<Rc<RefCell<BasicBlock<T>>>> {
         let mut visited = HashSet::<InstructionOrLabel>::default();
