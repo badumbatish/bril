@@ -345,7 +345,7 @@ impl<T: std::fmt::Debug> CFG<T> {
         }
     }
 
-    fn dfs_children(bb: &mut BasicBlock<T>) {}
+    // fn dfs_children(bb: &mut BasicBlock<T>) {}
     fn bfs_children(bb: &mut Rc<RefCell<BasicBlock<T>>>) -> VecDeque<Rc<RefCell<BasicBlock<T>>>> {
         let mut visited = HashSet::<InstructionOrLabel>::default();
         let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();

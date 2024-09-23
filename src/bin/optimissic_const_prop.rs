@@ -5,19 +5,20 @@ use bril::util::{BasicBlock, TransferResult, CFG};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
     Dominator,
+    Dominated,
     Constant(u64),
 }
 
 /// Combine lattice value based on the lattice value type
 /// This is called in a meet function on each instruction
 pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) -> LatticeValue {
-    
-    // eprintln!("{:?} : {:?} : {:?}", meet_value, q, p);
-    match (q, p) {
+    let meet_value = match (q, p) {
         (Some(a), Some(b)) => match (a, b) {
             (LatticeValue::Dominator, LatticeValue::Dominator) => LatticeValue::Dominator,
             (LatticeValue::Dominator, LatticeValue::Constant(_)) => LatticeValue::Dominator,
+            (LatticeValue::Dominator, LatticeValue::Dominated) => LatticeValue::Dominator,
             (LatticeValue::Constant(_), LatticeValue::Dominator) => LatticeValue::Dominator,
+            (LatticeValue::Constant(c), LatticeValue::Dominated) => LatticeValue::Constant(*c),
             (LatticeValue::Constant(c), LatticeValue::Constant(d)) => {
                 if c == d {
                     LatticeValue::Constant(*c)
@@ -25,9 +26,19 @@ pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) ->
                     LatticeValue::Dominator
                 }
             }
+            (LatticeValue::Dominated, LatticeValue::Dominator) => LatticeValue::Dominator,
+            (LatticeValue::Dominated, LatticeValue::Dominated) => LatticeValue::Dominated,
+            (LatticeValue::Dominated, LatticeValue::Constant(c)) => LatticeValue::Constant(*c),
         },
+        (_, Some(LatticeValue::Constant(c))) => LatticeValue::Constant(*c),
+        (Some(LatticeValue::Constant(c)), _) => LatticeValue::Constant(*c),
+        (Some(LatticeValue::Dominated), _) => LatticeValue::Dominated,
+        (_, Some(LatticeValue::Dominated)) => LatticeValue::Dominated,
+        (None, None) => LatticeValue::Dominated,
         (_, _) => LatticeValue::Dominator,
-    }
+    };
+    eprintln!("{:?} : {:?} : {:?}", meet_value, q, p);
+    meet_value
 }
 
 /// Combine lattice value based on the instruction type and the facts we have had
@@ -129,7 +140,7 @@ pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> TransferResult {
     for instr_label in bb.instrs.clone() {
         if let InstructionOrLabel::Instruction(instr) = instr_label {
             if let Some((a, b)) = lattice_value_transfer(&instr, &bb.facts) {
-                // eprintln!("Transferring in {:?}: {:?} - {:?}", bb.instrs.first(), a, b);
+                eprintln!("Transferring in {:?}: {:?} - {:?}", bb.instrs.first(), a, b);
                 bb.facts.insert(a, b);
             }
         }
