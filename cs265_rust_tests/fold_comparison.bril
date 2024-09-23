@@ -1,5 +1,5 @@
 
-# RUN: cat %s | bril2json | ../target/debug/optimissic_const_prop | grep -v "eq|ge|gt|le|lt"  
+# RUN: cat %s | bril2json | ../target/debug/optimistic_const_prop | grep -v "eq|ge|gt|le|lt"  
 @main() {
   a: int = const 4;
   b: int = const 3;
