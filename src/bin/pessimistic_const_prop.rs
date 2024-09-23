@@ -8,7 +8,8 @@ pub enum LatticeValue {
     Constant(u64),
 }
 
-pub fn combine_lattice_value(q: Option<&LatticeValue>, p: Option<&LatticeValue>) -> LatticeValue {
+/// Combine lattice value based on the lattice value type
+pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) -> LatticeValue {
     match (q, p) {
         (Some(a), Some(b)) => match (a, b) {
             (LatticeValue::Dominator, LatticeValue::Dominator) => LatticeValue::Dominator,
@@ -22,19 +23,81 @@ pub fn combine_lattice_value(q: Option<&LatticeValue>, p: Option<&LatticeValue>)
                 }
             }
         },
-        (_, None) => LatticeValue::Dominator,
-        (None, _) => LatticeValue::Dominator,
+        (_, _) => LatticeValue::Dominator,
     }
 }
 
+/// Combine lattice value based on the instruction type and the facts we have had
+pub fn lattice_value_transfer(
+    instr: &Instruction,
+    facts: &HashMap<String, LatticeValue>,
+) -> Option<(String, LatticeValue)> {
+    if instr.is_const() {
+        return Some((
+            instr.clone().dest?,
+            LatticeValue::Constant(
+                (serde_json::from_value(instr.value.clone().unwrap()))
+                    .expect("Failed to parse value "),
+            ),
+        ));
+    } else if instr.is_add() {
+        let args = instr.args.clone().unwrap();
+        let a = facts.get(&args[0]);
+        let b = facts.get(&args[1]);
+
+        return match (a, b) {
+            (Some(LatticeValue::Constant(c)), Some(LatticeValue::Constant(d))) => {
+                Some((instr.clone().dest?, LatticeValue::Constant(c + d)))
+            }
+            _ => None,
+        };
+    } else if instr.is_sub() {
+        let args = instr.args.clone().unwrap();
+        let a = facts.get(&args[0]);
+        let b = facts.get(&args[1]);
+
+        return match (a, b) {
+            (Some(LatticeValue::Constant(c)), Some(LatticeValue::Constant(d))) => {
+                Some((instr.clone().dest?, LatticeValue::Constant(c - d)))
+            }
+            _ => None,
+        };
+    } else if instr.is_mul() {
+        let args = instr.args.clone().unwrap();
+        let a = facts.get(&args[0]);
+        let b = facts.get(&args[1]);
+
+        return match (a, b) {
+            (Some(LatticeValue::Constant(c)), Some(LatticeValue::Constant(d))) => {
+                Some((instr.clone().dest?, LatticeValue::Constant(c * d)))
+            }
+            _ => None,
+        };
+    } else if instr.is_div() {
+        let args = instr.args.clone().unwrap();
+        let a = facts.get(&args[0]);
+        let b = facts.get(&args[1]);
+
+        return match (a, b) {
+            (Some(LatticeValue::Constant(c)), Some(LatticeValue::Constant(d))) => {
+                Some((instr.clone().dest?, LatticeValue::Constant(c / d)))
+            }
+            _ => None,
+        };
+    } else {
+        return None;
+    }
+}
 /// Meet all the successor block
 pub fn forward_meet(bb: &mut BasicBlock<LatticeValue>) {
     let mut hs = HashMap::<String, LatticeValue>::new();
 
+    //  In all predecessors's facts, we union them via the rule of
+    //  combine_lattice_value
     for i in bb.predecessors.iter() {
         for l in i.borrow_mut().facts.clone() {
             let v = hs.get(&l.0);
-            let res = combine_lattice_value(v, Some(&l.1));
+            let res = lattice_value_meet(v, Some(&l.1));
 
             hs.insert(l.0, res);
         }
@@ -43,57 +106,19 @@ pub fn forward_meet(bb: &mut BasicBlock<LatticeValue>) {
     bb.facts = hs;
 }
 
-pub fn is_const(instr: Instruction, facts: &HashMap<String, LatticeValue>) -> LatticeValue {
-    if instr.is_add() {
-        let args = instr.args.clone().unwrap();
-        let a = facts.get(&args[0]);
-        let b = facts.get(&args[1]);
-
-        return match (a, b) {
-            (Some(LatticeValue::Constant(c)), Some(LatticeValue::Constant(d))) => {
-                LatticeValue::Constant(c + d)
-            }
-            _ => LatticeValue::Dominator,
-        };
-    }
-
-    LatticeValue::Dominator
-}
 /// Transfer the facts in the block forwards
 pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> TransferResult {
     let mut changed = TransferResult::NonChanged;
     let initial = bb.facts.clone();
     for instr_label in bb.instrs.clone() {
-        match instr_label {
-            InstructionOrLabel::Instruction(instr) => {
-                // if instr.is_const() && instr.bril_type == Some(BrilType::Int) {
-                //     let lv = bb.facts.get(&instr.dest.clone().unwrap().clone());
-                //     let a = match lv {
-                //         Some(l) => Some(l.clone()),
-                //         None => Some(LatticeValue::Dominator),
-                //     };
-                //     let change = bb.facts.insert(
-                //         instr.clone().dest.clone().expect("Should not happen"),
-                //         combine_lattice_value(
-                //             a.as_ref(),
-                //             Some(&LatticeValue::Constant(
-                //                 serde_json::from_value(instr.value.unwrap())
-                //                     .expect("This cant fail"),
-                //             )),
-                //         ),
-                //     );
-                //
-                //     if change.is_none() {
-                //         changed = TransferResult::CHANGED;
-                //     } else if a != change {
-                //         changed = TransferResult::CHANGED;
-                //     }
-                // } else if let LatticeValue::Constant(c) = is_const(instr, &bb.facts) {
-                // }
+        if let InstructionOrLabel::Instruction(instr) = instr_label {
+            if let Some((a, b)) = lattice_value_transfer(&instr, &bb.facts) {
+                // eprintln!("{:?} - {:?}", a, b);
+                bb.facts.insert(a, b);
             }
-            InstructionOrLabel::Label(_) => continue,
         }
     }
+
     match initial == bb.facts {
         true => TransferResult::NonChanged,
         false => TransferResult::CHANGED,
@@ -103,19 +128,15 @@ pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> TransferResult {
 /// Transform a basic block based on the fact it has acquired, this is only after fix-point
 pub fn transform(bb: &mut BasicBlock<LatticeValue>) {
     for instr_label in bb.instrs.iter_mut() {
-        match instr_label {
-            InstructionOrLabel::Instruction(instr) => {
-                // if instr.dest.is_some() {
-                //     let q = bb.facts.get(&instr.dest.clone().unwrap());
-                //     if let Some(LatticeValue::Constant(b)) = q {
-                //         instr.to_const_int(*b);
-                //         instr.args = None;
-                //         instr.funcs = None;
-                //     }
-                // }
+        if let InstructionOrLabel::Instruction(instr) = instr_label {
+            if let Some((_, LatticeValue::Constant(c))) = lattice_value_transfer(&instr, &bb.facts)
+            {
+                instr.value =
+                    Some(serde_json::to_value(c).expect("This should absolutely not failed"));
+                instr.args = None;
+                instr.op = "const".to_string();
+                instr.funcs = None;
             }
-
-            _ => continue,
         }
     }
 }

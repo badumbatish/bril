@@ -2,6 +2,7 @@ use core::panic;
 use std::{
     cell::{RefCell, RefMut},
     collections::{HashMap, HashSet, VecDeque},
+    fmt::Debug,
     rc::Rc,
 };
 
@@ -67,7 +68,10 @@ impl<T: std::fmt::Debug> std::fmt::Display for BasicBlock<T> {
     }
 }
 
-impl<FactType> BasicBlock<FactType> {
+impl<FactType> BasicBlock<FactType>
+where
+    FactType: Debug,
+{
     pub fn as_txt_instructions(self) -> String {
         let _result = String::new();
         todo!()
@@ -160,8 +164,9 @@ impl<FactType> BasicBlock<FactType> {
                                 }
                             }
                             // TODO: Handle doubly labels by explicitly add pred
-                            InstructionOrLabel::Label(_) => {
-                                panic!("Cannot handle doubly labels rn")
+                            InstructionOrLabel::Label(lb) => {
+                                i -= 1;
+                                break;
                             }
                         }
                         i += 1;
@@ -213,7 +218,6 @@ impl<T: std::fmt::Debug> CFG<T> {
                 hm.insert(bb.borrow().instrs.first().unwrap().clone(), bb.clone());
             }
         }
-
         // Iterate to connect them
         for i in hm.values() {
             let mut bi = i.borrow_mut();
@@ -225,7 +229,6 @@ impl<T: std::fmt::Debug> CFG<T> {
                         }
                         InstructionOrLabel::Instruction(ins) => {
                             if ins.is_br() {
-                                eprintln!("{:?}", ins.labels.clone().unwrap()[0].clone());
                                 bi.successors.push(
                                     hm[&InstructionOrLabel::from(
                                         ins.labels.clone().unwrap()[1].clone(),
@@ -252,12 +255,18 @@ impl<T: std::fmt::Debug> CFG<T> {
                                     .predecessors
                                     .push(i.clone());
                             } else if ins.is_jmp() {
-                                bi.predecessors.push(
+                                bi.successors.push(
                                     hm[&InstructionOrLabel::from(
                                         ins.labels.clone().unwrap()[0].clone(),
                                     )]
                                         .clone(),
                                 );
+                                hm[&InstructionOrLabel::from(
+                                    ins.labels.clone().unwrap()[0].clone(),
+                                )]
+                                    .borrow_mut()
+                                    .predecessors
+                                    .push(i.clone());
                             }
                         }
                     },
@@ -275,13 +284,19 @@ impl<T: std::fmt::Debug> CFG<T> {
             other_fields: serde_json::Value::default(),
         };
 
-        for i in self.hm.iter() {
-            match &i.1.borrow().func {
-                Some(_) => p.functions.push(self.insert_instr_func(i.1.clone())),
-                None => continue,
+        // The function is here just because we want to maintain the initial order of function in
+        // textual IR
+        let mut sorted_by_func_id: Vec<Rc<RefCell<BasicBlock<T>>>> =
+            self.hm.values().cloned().collect();
+
+        // Sort the vector by the 'id' field
+        sorted_by_func_id.sort_by_key(|e| e.borrow().id);
+
+        for i in sorted_by_func_id {
+            if let Some(_) = i.borrow().func {
+                p.functions.push(self.insert_instr_func(i.clone()));
             }
         }
-
         p
     }
 
@@ -336,7 +351,6 @@ impl<T: std::fmt::Debug> CFG<T> {
         let mut counter = 1;
         let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
         for i in self.hm.clone() {
-            eprintln!("{}", counter);
             counter += 1;
             if let Some(_) = &i.1.borrow_mut().func {
                 q.push_back(i.1.clone());
