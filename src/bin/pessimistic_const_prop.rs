@@ -9,6 +9,7 @@ pub enum LatticeValue {
 }
 
 /// Combine lattice value based on the lattice value type
+/// This is called in a meet function on each instruction
 pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) -> LatticeValue {
     match (q, p) {
         (Some(a), Some(b)) => match (a, b) {
@@ -28,6 +29,7 @@ pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) ->
 }
 
 /// Combine lattice value based on the instruction type and the facts we have had
+/// This is called in a transfer function on each instruction
 pub fn lattice_value_transfer(
     instr: &Instruction,
     facts: &HashMap<String, LatticeValue>,
@@ -88,7 +90,7 @@ pub fn lattice_value_transfer(
         return None;
     }
 }
-/// Meet all the successor block
+/// Meet all the successor block based on the instruction's dest and LatticeValue
 pub fn forward_meet(bb: &mut BasicBlock<LatticeValue>) {
     let mut hs = HashMap::<String, LatticeValue>::new();
 

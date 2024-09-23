@@ -1,0 +1,24 @@
+@main {
+  i: int = const 1;
+  j: int = const 0;
+  c: int = const 2; 
+  zero: int = const 0;
+  l: int = const 1; 
+.loop:
+  v : bool = gt c zero;  
+  br v .end .loop_body;
+.loop_body:
+  j: int = id i;
+  i: int = call @f i;
+  i: int = id j;
+  c: int = sub c l;
+  jmp .loop;
+.end:
+  ret;
+}
+
+# Assuming f(...) is a function that takes an integer and returns an integer
+@f(x: int): int {
+  # Placeholder for the actual implementation of f
+  ret x;
+}

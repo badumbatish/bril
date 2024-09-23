@@ -1,4 +1,3 @@
-use core::panic;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
@@ -94,86 +93,56 @@ where
         let mut result: Vec<Rc<RefCell<BasicBlock<FactType>>>> = Vec::new();
         let mut i = 0;
         // let mut last_instruction_before_construction = 0;
+        let mut non_linear_before = false;
         while i < f.instrs.len() {
-            match &f.instrs[i] {
-                // this match only happens if instruction is at start of function or after a branch
-                // without label
-                InstructionOrLabel::Instruction(_) => {
-                    let mut bb = BasicBlock::default(*id);
-                    *id += 1;
-                    if result.is_empty() {
-                        bb.func = Some(f.clone());
-                    } else {
-                        //result
-                        //    .last()
-                        //    .unwrap()
-                        //    .borrow_mut()
-                        //    .successors
-                        //    .push(bb.clone());
-                        //if let InstructionOrLabel::Instruction(ins) = &f.instrs[i - 1] {
-                        //    if !ins.is_nonlinear() {
-                        //        bb_br.predecessors.push(result.last().unwrap().clone());
-                        //    }
-                        //}
-
-                        // panic!("I don't know how to handle this case of instruction happenning after a non-linear without label");
-                    }
-
-                    bb.instrs.push(f.instrs[i].clone());
-                    i += 1;
-                    loop {
-                        if i >= f.instrs.len() {
-                            break;
-                        }
-                        match &f.instrs[i] {
-                            InstructionOrLabel::Instruction(instr) => {
-                                bb.instrs
-                                    .push(InstructionOrLabel::Instruction(instr.clone()));
-                                if instr.is_jmp() || instr.is_br() {
-                                    break;
-                                }
-                            }
-                            // TODO: Handle doubly label
-                            InstructionOrLabel::Label(_) => panic!("Cannot handle labels rn"),
-                        }
-                        i += 1;
-                    }
-
-                    result.push(Rc::<RefCell<BasicBlock<FactType>>>::new(bb.into()));
-                }
-                InstructionOrLabel::Label(_) => {
-                    //panic!("Cannot handle labels rn");
-                    let mut bb = BasicBlock::default(*id);
-                    *id += 1;
-                    if result.is_empty() {
-                        bb.func = Some(f.clone());
-                    }
-                    bb.instrs.push(f.instrs[i].clone());
-
-                    i += 1;
-                    loop {
-                        if i >= f.instrs.len() {
-                            break;
-                        }
-                        match &f.instrs[i] {
-                            InstructionOrLabel::Instruction(instr) => {
-                                bb.instrs
-                                    .push(InstructionOrLabel::Instruction(instr.clone()));
-                                if instr.is_jmp() || instr.is_br() {
-                                    break;
-                                }
-                            }
-                            // TODO: Handle doubly labels by explicitly add pred
-                            InstructionOrLabel::Label(_) => {
-                                i -= 1;
-                                break;
-                            }
-                        }
-                        i += 1;
-                    }
-                    result.push(Rc::<RefCell<BasicBlock<FactType>>>::new(bb.into()));
-                }
+            // this match only happens if instruction is at start of function or after a branch
+            // without label
+            let b: BasicBlock<FactType> = BasicBlock::default(*id);
+            let bb: Rc<RefCell<BasicBlock<FactType>>> =
+                Rc::<RefCell<BasicBlock<FactType>>>::new(b.into());
+            *id += 1;
+            if result.is_empty() {
+                bb.borrow_mut().func = Some(f.clone());
+            } else if !non_linear_before {
+                bb.borrow_mut()
+                    .successors
+                    .push(result.last().unwrap().clone());
+                result
+                    .last_mut()
+                    .unwrap()
+                    .borrow_mut()
+                    .successors
+                    .push(bb.clone());
             }
+
+            let mut bb_mut = bb.borrow_mut();
+            bb_mut.instrs.push(f.instrs[i].clone());
+            i += 1;
+            loop {
+                if i >= f.instrs.len() {
+                    break;
+                }
+                match &f.instrs[i] {
+                    InstructionOrLabel::Instruction(instr) => {
+                        bb_mut
+                            .instrs
+                            .push(InstructionOrLabel::Instruction(instr.clone()));
+                        if instr.is_jmp() || instr.is_br() {
+                            non_linear_before = true;
+                            break;
+                        }
+                    }
+                    // TODO: Handle doubly label
+                    InstructionOrLabel::Label(_) => {
+                        i -= 1;
+                        non_linear_before = false;
+                        break;
+                    }
+                }
+                i += 1;
+            }
+
+            result.push(bb.clone());
             i += 1;
         }
         result
