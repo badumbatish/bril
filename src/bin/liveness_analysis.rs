@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bril::bril_syntax::{Instruction, InstructionOrLabel, Program};
-use bril::util::{BasicBlock, TransferResult, CFG};
+use bril::cfg::{BasicBlock, TransferResult, CFG};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
     Alisa,

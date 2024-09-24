@@ -1,5 +1,5 @@
 use bril::bril_syntax::Program;
-use bril::util::CFG;
+use bril::cfg::CFG;
 fn main() {
     // Filter out "nop" instructions for each function
     let prog = Program::stdin();
