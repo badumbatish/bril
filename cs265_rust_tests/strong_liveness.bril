@@ -1,0 +1,18 @@
+# RUN: cat %s | bril2json | ../target/debug/liveness_analysis | bril2txt | grep -v "y = add y 1" 
+@main {
+.entry:
+  x: int = const 0;
+  y: int = const 2;
+  one: int = const 1;
+  z: int = id y;
+  jmp .header;
+.header:
+  c: bool = lt x a;
+  br c .loop .exit;
+.loop:
+  x = add x one;
+  y = add y one;
+  jmp .header;
+.exit:
+  return x;
+}

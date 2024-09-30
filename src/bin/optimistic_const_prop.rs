@@ -286,7 +286,7 @@ pub fn transform(bb: &mut BasicBlock<LatticeValue>) {
                     &bb.facts.get(&instr.dest.clone().unwrap())
                 {
                     instr.value =
-                        Some(serde_json::to_value(c).expect("This should absolutely not failed"));
+                        Some(serde_json::to_value(c).expect("This should absolutely not fail"));
                     instr.args = None;
                     instr.op = "const".to_string();
                     instr.funcs = None;
@@ -294,7 +294,7 @@ pub fn transform(bb: &mut BasicBlock<LatticeValue>) {
                     &bb.facts.get(&instr.dest.clone().unwrap())
                 {
                     instr.value =
-                        Some(serde_json::to_value(c).expect("This should absolutely not failed"));
+                        Some(serde_json::to_value(c).expect("This should absolutely not fail"));
                     instr.args = None;
                     instr.op = "const".to_string();
                     instr.funcs = None;

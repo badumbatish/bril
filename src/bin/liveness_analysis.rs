@@ -4,6 +4,7 @@ use bril::bril_syntax::{Instruction, InstructionOrLabel, Program};
 use bril::cfg::{BasicBlock, TransferResult, CFG};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
+    StrongAlisa,
     Alisa,
     Dead,
 }
@@ -18,6 +19,7 @@ pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) ->
             (LatticeValue::Alisa, LatticeValue::Dead) => LatticeValue::Alisa,
             (LatticeValue::Dead, LatticeValue::Dead) => LatticeValue::Dead,
             (LatticeValue::Dead, LatticeValue::Alisa) => LatticeValue::Alisa,
+            (_, _) => LatticeValue::StrongAlisa,
         },
         (_, _) => LatticeValue::Alisa,
     }
@@ -31,12 +33,23 @@ pub fn lattice_value_transfer(
 ) -> HashMap<String, LatticeValue> {
     let mut sub_facts = HashMap::<String, LatticeValue>::new();
 
-    if let Some(args) = &instr.args {
-        for arg in args {
-            sub_facts.insert(
-                arg.clone(),
-                lattice_value_meet(Some(&LatticeValue::Alisa), facts.get(&arg.clone())),
-            );
+    if instr.is_nonlinear() { // All args are now strongly live
+        if let Some(args) = &instr.args {
+            for arg in args {
+                sub_facts.insert(
+                    arg.clone(),
+                    lattice_value_meet(Some(&LatticeValue::StrongAlisa), facts.get(&arg.clone())),
+                );
+            }
+        }
+    } else { // All args are now live
+        if let Some(args) = &instr.args {
+            for arg in args {
+                sub_facts.insert(
+                    arg.clone(),
+                    lattice_value_meet(Some(&LatticeValue::Alisa), facts.get(&arg.clone())),
+                );
+            }
         }
     }
     if let Some(dest) = &instr.dest {
@@ -111,5 +124,4 @@ fn main() {
     let prog = cfg.to_program();
 
     prog.stdout()
-    // cfg.print_hm();
 }
