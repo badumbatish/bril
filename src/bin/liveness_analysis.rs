@@ -22,6 +22,7 @@ pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) ->
             (LatticeValue::Dead, LatticeValue::Alisa) => LatticeValue::Alisa,
             (_, _) => LatticeValue::StrongAlisa,
         },
+        (Some(LatticeValue::Dead), None) => LatticeValue::Dead,
         (_, _) => LatticeValue::Alisa,
     }
 }
@@ -34,7 +35,11 @@ pub fn lattice_value_transfer(
 ) -> HashMap<String, LatticeValue> {
     let mut sub_facts = HashMap::<String, LatticeValue>::new();
 
-    if instr.is_nonlinear() || facts.get(&instr.dest.clone().unwrap_or("||||||||".to_string())) == Some(&LatticeValue::StrongAlisa) { // All args are now strongly live
+    if instr.is_nonlinear()
+        || facts.get(&instr.dest.clone().unwrap_or("||||||||".to_string()))
+            == Some(&LatticeValue::StrongAlisa)
+    {
+        // All args are now strongly live
         if let Some(args) = &instr.args {
             for arg in args {
                 sub_facts.insert(
@@ -43,7 +48,8 @@ pub fn lattice_value_transfer(
                 );
             }
         }
-    } else { // All args are now live
+    } else {
+        // All args are now live
         if let Some(args) = &instr.args {
             for arg in args {
                 sub_facts.insert(
@@ -53,8 +59,24 @@ pub fn lattice_value_transfer(
             }
         }
     }
+    let dead = match instr.is_nonlinear()
+        || facts.get(&instr.dest.clone().unwrap_or("||||||||".to_string()))
+            == Some(&LatticeValue::StrongAlisa)
+    {
+        true => LatticeValue::StrongAlisa,
+        false => LatticeValue::Dead,
+    };
     if let Some(dest) = &instr.dest {
-        sub_facts.insert(dest.clone(), lattice_value_meet(Some(&LatticeValue::Dead), sub_facts.get(&dest.clone())));
+        sub_facts.insert(
+            dest.clone(),
+            lattice_value_meet(
+                Some(&dead),
+                Some(&lattice_value_meet(
+                    sub_facts.get(&dest.clone()),
+                    facts.get(&dest.clone()),
+                )),
+            ),
+        );
     }
     sub_facts
 }
@@ -67,7 +89,7 @@ pub fn backward_meet(bb: &mut BasicBlock<LatticeValue>) {
     for i in bb.predecessors.iter() {
         for l in i.borrow_mut().facts.clone() {
             let v = hs.get(&l.0);
-           
+
             let res = lattice_value_meet(v, Some(&l.1));
             // eprintln!("Meet of {:?} in {:?}: meet value: {:?}", l.0, bb.instrs.first(), res);
             hs.insert(l.0, res);
@@ -102,7 +124,7 @@ pub fn transform(bb: &mut BasicBlock<LatticeValue>) {
         if let InstructionOrLabel::Instruction(instr) = instr_label {
             if instr.is_nonlinear() {
                 keep.push(InstructionOrLabel::from(instr.clone()));
-            } else if let Some(LatticeValue::Dead | LatticeValue::Alisa) = &bb
+            } else if let Some(LatticeValue::Dead) = &bb
                 .facts
                 .get(&instr.dest.clone().unwrap_or_else(|| "|||||||".to_string()))
             {
