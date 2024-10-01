@@ -22,6 +22,7 @@ impl Display for BrilType {
         }
     }
 }
+
 // Define a structure to represent the JSON format
 #[derive(Serialize, Deserialize, Debug, Hash, Clone, PartialEq, Eq)]
 pub struct Instruction {
@@ -40,8 +41,8 @@ pub struct Instruction {
     pub funcs: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub labels: Option<Vec<String>>,
-    #[serde(flatten)]
-    pub other_fields: Value, // Store unknown fields here
+    // #[serde(flatten)]
+    // pub other_fields: Value, // Store unknown fields here
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
@@ -103,18 +104,21 @@ pub struct Function {
     #[serde(rename = "type")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bril_type: Option<BrilType>,
-    #[serde(flatten)]
-    pub other_fields: Value, // Store unknown fields here
+    // #[serde(flatten)]
+    // pub other_fields: Value, // Store unknown fields here
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Program {
     pub functions: Vec<Function>,
-    #[serde(flatten)]
-    pub other_fields: Value, // Store unknown fields here
+    // #[serde(flatten)]
+    // pub other_fields: Value, // Store unknown fields here
 }
 
 impl Instruction {
+    pub fn is_phi(&self) -> bool {
+         &self.op == "phi"
+    }
     pub fn is_add(&self) -> bool {
         &self.op == "add"
     }

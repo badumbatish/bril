@@ -3,6 +3,7 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     fmt::Debug,
     rc::Rc,
+    hash::{Hash, Hasher},
 };
 
 use crate::bril_syntax::{Function, InstructionOrLabel, Program};
@@ -73,6 +74,20 @@ impl<T: std::fmt::Debug> std::fmt::Display for BasicBlock<T> {
         writeln!(f, "\n")
     }
 }
+
+impl<T> Hash for BasicBlock<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl<T> PartialEq for BasicBlock<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl<T> Eq for BasicBlock<T> {}
 
 impl<FactType> BasicBlock<FactType>
 where
@@ -258,7 +273,7 @@ impl<T: std::fmt::Debug> CFG<T> {
     pub fn to_program(&self) -> Program {
         let mut p = Program {
             functions: Vec::default(),
-            other_fields: serde_json::Value::default(),
+            // other_fields: serde_json::Value::default(),
         };
 
         // The function is here just because we want to maintain the initial order of function in
