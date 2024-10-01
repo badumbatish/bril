@@ -4,15 +4,16 @@ use bril::bril_syntax::{Instruction, InstructionOrLabel, Program};
 use bril::cfg::{BasicBlock, TransferResult, CFG};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
-    StrongAlisa,
     Alisa,
     Dead,
+    StrongAlisa,
 }
 
 /// Combine lattice value based on the lattice value type
 /// This is called in a meet function on each instruction
 pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) -> LatticeValue {
     // We don't dare delete a value if it is not dead yet, let's be conservative
+    // eprintln!("Meet of {:?} in {:?}", l.0, bb.instrs.first());
     match (q, p) {
         (Some(a), Some(b)) => match (a, b) {
             (LatticeValue::Alisa, LatticeValue::Alisa) => LatticeValue::Alisa,
@@ -33,7 +34,7 @@ pub fn lattice_value_transfer(
 ) -> HashMap<String, LatticeValue> {
     let mut sub_facts = HashMap::<String, LatticeValue>::new();
 
-    if instr.is_nonlinear() { // All args are now strongly live
+    if instr.is_nonlinear() || facts.get(&instr.dest.clone().unwrap_or("||||||||".to_string())) == Some(&LatticeValue::StrongAlisa) { // All args are now strongly live
         if let Some(args) = &instr.args {
             for arg in args {
                 sub_facts.insert(
@@ -53,7 +54,7 @@ pub fn lattice_value_transfer(
         }
     }
     if let Some(dest) = &instr.dest {
-        sub_facts.insert(dest.clone(), LatticeValue::Dead);
+        sub_facts.insert(dest.clone(), lattice_value_meet(Some(&LatticeValue::Dead), sub_facts.get(&dest.clone())));
     }
     sub_facts
 }
@@ -66,9 +67,9 @@ pub fn backward_meet(bb: &mut BasicBlock<LatticeValue>) {
     for i in bb.predecessors.iter() {
         for l in i.borrow_mut().facts.clone() {
             let v = hs.get(&l.0);
-            eprintln!("Meet of {:?} in {:?}", l.0, bb.instrs.first());
+           
             let res = lattice_value_meet(v, Some(&l.1));
-
+            // eprintln!("Meet of {:?} in {:?}: meet value: {:?}", l.0, bb.instrs.first(), res);
             hs.insert(l.0, res);
         }
     }
@@ -79,7 +80,7 @@ pub fn backward_meet(bb: &mut BasicBlock<LatticeValue>) {
 /// Transfer the facts in the block forwards
 pub fn backward_transfer(bb: &mut BasicBlock<LatticeValue>) -> TransferResult {
     let initial = bb.facts.clone();
-    eprintln!("Transferring in {:?}", bb.instrs.first());
+    // eprintln!("Transferring in {:?}", bb.instrs.first());
     for instr_label in bb.instrs.clone() {
         if let InstructionOrLabel::Instruction(instr) = instr_label {
             let sub_facts = lattice_value_transfer(&instr, &bb.facts);
@@ -101,7 +102,7 @@ pub fn transform(bb: &mut BasicBlock<LatticeValue>) {
         if let InstructionOrLabel::Instruction(instr) = instr_label {
             if instr.is_nonlinear() {
                 keep.push(InstructionOrLabel::from(instr.clone()));
-            } else if let Some(LatticeValue::Dead) = &bb
+            } else if let Some(LatticeValue::Dead | LatticeValue::Alisa) = &bb
                 .facts
                 .get(&instr.dest.clone().unwrap_or_else(|| "|||||||".to_string()))
             {
