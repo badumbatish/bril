@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bril::bril_syntax::{Instruction, InstructionOrLabel, Program};
-use bril::cfg::{BasicBlock, TransferResult, CFG};
+use bril::cfg::{BasicBlock, DataFlowAnalysis, DataFlowDirection, TransferResult, CFG};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
     Alisa,
@@ -9,149 +9,178 @@ pub enum LatticeValue {
     StrongAlisa,
 }
 
-/// Combine lattice value based on the lattice value type
-/// This is called in a meet function on each instruction
-pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) -> LatticeValue {
-    // We don't dare delete a value if it is not dead yet, let's be conservative
-    // eprintln!("Meet of {:?} in {:?}", l.0, bb.instrs.first());
-    match (q, p) {
-        (Some(a), Some(b)) => match (a, b) {
-            (LatticeValue::Alisa, LatticeValue::Alisa) => LatticeValue::Alisa,
-            (LatticeValue::Alisa, LatticeValue::Dead) => LatticeValue::Alisa,
-            (LatticeValue::Dead, LatticeValue::Dead) => LatticeValue::Dead,
-            (LatticeValue::Dead, LatticeValue::Alisa) => LatticeValue::Alisa,
-            (_, _) => LatticeValue::StrongAlisa,
-        },
-        (Some(LatticeValue::Dead), None) => LatticeValue::Dead,
-        (None, Some(LatticeValue::Dead)) => LatticeValue::Dead,
-        (Some(LatticeValue::StrongAlisa), _) => LatticeValue::StrongAlisa,
-        (_, Some(LatticeValue::StrongAlisa)) => LatticeValue::StrongAlisa,
-        (_, _) => LatticeValue::Dead,
-    }
+struct LivenessAnalysis {
+    pub facts: HashMap<usize, HashMap<String, LatticeValue>>,
 }
-
-/// Combine lattice value based on the instruction type and the facts we have had
-/// This is called in a transfer function on each instruction
-pub fn lattice_value_transfer(
-    instr: &Instruction,
-    facts: &HashMap<String, LatticeValue>,
-) -> HashMap<String, LatticeValue> {
-    let mut sub_facts = HashMap::<String, LatticeValue>::new();
-
-    if instr.is_nonlinear()
-        || facts.get(&instr.dest.clone().unwrap_or("||||||||".to_string()))
-            == Some(&LatticeValue::StrongAlisa)
-    {
-        // All args are now strongly live
-        if let Some(args) = &instr.args {
-            for arg in args {
-                sub_facts.insert(
-                    arg.clone(),
-                    lattice_value_meet(Some(&LatticeValue::StrongAlisa), facts.get(&arg.clone())),
-                );
-            }
-        }
-    } else {
-        // All args are now live
-        if let Some(args) = &instr.args {
-            for arg in args {
-                sub_facts.insert(
-                    arg.clone(),
-                    lattice_value_meet(Some(&LatticeValue::Alisa), facts.get(&arg.clone())),
-                );
-            }
+impl LivenessAnalysis {
+    pub fn new() -> Self {
+        Self {
+            facts: HashMap::new(),
         }
     }
-    let dead = match instr.is_nonlinear()
-        || facts.get(&instr.dest.clone().unwrap_or("||||||||".to_string()))
-            == Some(&LatticeValue::StrongAlisa)
-    {
-        true => LatticeValue::StrongAlisa,
-        false => LatticeValue::Dead,
-    };
-    if let Some(dest) = &instr.dest {
-        sub_facts.insert(
-            dest.clone(),
-            lattice_value_meet(
-                Some(&dead),
-                Some(&lattice_value_meet(
-                    sub_facts.get(&dest.clone()),
-                    facts.get(&dest.clone()),
-                )),
-            ),
-        );
-    }
-    sub_facts
-}
-/// Meet all the successor block based on the instruction's dest and LatticeValue
-pub fn backward_meet(bb: &mut BasicBlock<LatticeValue>) {
-    let mut hs = HashMap::<String, LatticeValue>::new();
-
-    //  In all predecessors's facts, we union them via the rule of
-    //  combine_lattice_value
-    for i in bb.predecessors.iter() {
-        for l in i.borrow_mut().facts.clone() {
-            let v = hs.get(&l.0);
-
-            let res = lattice_value_meet(v, Some(&l.1));
-            // eprintln!("Meet of {:?} in {:?}: meet value: {:?}", l.0, bb.instrs.first(), res);
-            hs.insert(l.0, res);
+    // Combine lattice value based on the lattice value type
+    /// This is called in a meet function on each instruction
+    pub fn lattice_value_meet(
+        &self,
+        q: Option<&LatticeValue>,
+        p: Option<&LatticeValue>,
+    ) -> LatticeValue {
+        // We don't dare delete a value if it is not dead yet, let's be conservative
+        // eprintln!("Meet of {:?} in {:?}", l.0, bb.instrs.first());
+        match (q, p) {
+            (Some(a), Some(b)) => match (a, b) {
+                (LatticeValue::Alisa, LatticeValue::Alisa) => LatticeValue::Alisa,
+                (LatticeValue::Alisa, LatticeValue::Dead) => LatticeValue::Alisa,
+                (LatticeValue::Dead, LatticeValue::Dead) => LatticeValue::Dead,
+                (LatticeValue::Dead, LatticeValue::Alisa) => LatticeValue::Alisa,
+                (_, _) => LatticeValue::StrongAlisa,
+            },
+            (Some(LatticeValue::Dead), None) => LatticeValue::Dead,
+            (None, Some(LatticeValue::Dead)) => LatticeValue::Dead,
+            (Some(LatticeValue::StrongAlisa), _) => LatticeValue::StrongAlisa,
+            (_, Some(LatticeValue::StrongAlisa)) => LatticeValue::StrongAlisa,
+            (_, _) => LatticeValue::Dead,
         }
     }
 
-    bb.facts = hs;
-}
+    /// Combine lattice value based on the instruction type and the facts we have had
+    /// This is called in a transfer function on each instruction
+    pub fn lattice_value_transfer(
+        &self,
+        instr: &Instruction,
+        facts: &HashMap<String, LatticeValue>,
+    ) -> HashMap<String, LatticeValue> {
+        let mut sub_facts = HashMap::<String, LatticeValue>::new();
 
-/// Transfer the facts in the block forwards
-pub fn backward_transfer(bb: &mut BasicBlock<LatticeValue>) -> TransferResult {
-    let initial = bb.facts.clone();
-    // eprintln!("Transferring in {:?}", bb.instrs.first());
-    for instr_label in bb.instrs.clone() {
-        if let InstructionOrLabel::Instruction(instr) = instr_label {
-            let sub_facts = lattice_value_transfer(&instr, &bb.facts);
-            // eprintln!("Transferring in {:?}: {:?} - {:?}", bb.instrs.first(), a, b);
-            bb.facts.extend(sub_facts);
-        }
-    }
-
-    let result = match initial == bb.facts {
-        true => TransferResult::NonChanged,
-        false => TransferResult::Changed,
-    };
-
-    //eprintln!("{:?} in {:?}", result, bb.instrs.first());
-    result
-}
-
-/// Transform a basic block based on the fact it has acquired, this is only after fix-point
-pub fn transform(bb: &mut BasicBlock<LatticeValue>) {
-    let mut keep = Vec::<InstructionOrLabel>::new();
-    for instr_label in bb.instrs.iter_mut() {
-        if let InstructionOrLabel::Instruction(instr) = instr_label {
-            if instr.is_nonlinear() {
-                keep.push(InstructionOrLabel::from(instr.clone()));
-            } else if let Some(LatticeValue::Dead) = &bb
-                .facts
-                .get(&instr.dest.clone().unwrap_or_else(|| "|||||||".to_string()))
-            {
-            } else {
-                keep.push(InstructionOrLabel::from(instr.clone()));
+        if instr.is_nonlinear()
+            || facts.get(&instr.dest.clone().unwrap_or("||||||||".to_string()))
+                == Some(&LatticeValue::StrongAlisa)
+        {
+            // All args are now strongly live
+            if let Some(args) = &instr.args {
+                for arg in args {
+                    sub_facts.insert(
+                        arg.clone(),
+                        self.lattice_value_meet(
+                            Some(&LatticeValue::StrongAlisa),
+                            facts.get(&arg.clone()),
+                        ),
+                    );
+                }
             }
         } else {
-            keep.push(instr_label.clone());
+            // All args are now live
+            if let Some(args) = &instr.args {
+                for arg in args {
+                    sub_facts.insert(
+                        arg.clone(),
+                        self.lattice_value_meet(
+                            Some(&LatticeValue::Alisa),
+                            facts.get(&arg.clone()),
+                        ),
+                    );
+                }
+            }
         }
+        let dead = match instr.is_nonlinear()
+            || facts.get(&instr.dest.clone().unwrap_or("||||||||".to_string()))
+                == Some(&LatticeValue::StrongAlisa)
+        {
+            true => LatticeValue::StrongAlisa,
+            false => LatticeValue::Dead,
+        };
+        if let Some(dest) = &instr.dest {
+            sub_facts.insert(
+                dest.clone(),
+                self.lattice_value_meet(
+                    Some(&dead),
+                    Some(&self.lattice_value_meet(
+                        sub_facts.get(&dest.clone()),
+                        facts.get(&dest.clone()),
+                    )),
+                ),
+            );
+        }
+        sub_facts
     }
-    bb.instrs = keep;
 }
+impl DataFlowAnalysis for LivenessAnalysis {
+    /// Meet all the successor block based on the instruction's dest and LatticeValue
+    fn meet(&mut self, bb: &mut BasicBlock) {
+        let mut hs = HashMap::<String, LatticeValue>::new();
 
+        //  In all predecessors's facts, we union them via the rule of
+        //  combine_lattice_value
+        for _ in bb.predecessors.iter() {
+            for l in self.facts.entry(bb.id).or_default().clone() {
+                let v = hs.get(&l.0);
+
+                let res = self.lattice_value_meet(v, Some(&l.1));
+                // eprintln!("Meet of {:?} in {:?}: meet value: {:?}", l.0, bb.instrs.first(), res);
+                hs.insert(l.0, res);
+            }
+        }
+
+        let v = self.facts.entry(bb.id).or_default();
+        v.extend(hs.clone());
+    }
+
+    /// Transfer the facts in the block forwards
+    fn transfer(&mut self, bb: &mut BasicBlock) -> TransferResult {
+        let initial = self.facts.entry(bb.id).or_default().clone();
+
+        // eprintln!("Transferring in {:?}", bb.instrs.first());
+        for instr_label in bb.instrs.clone() {
+            if let InstructionOrLabel::Instruction(instr) = instr_label {
+                let sub_facts = self.lattice_value_transfer(&instr, &self.facts[&bb.id]);
+                // eprintln!("Transferring in {:?}: {:?} - {:?}", bb.instrs.first(), a, b);
+                self.facts.entry(bb.id).or_default().extend(sub_facts);
+            }
+        }
+
+        let result = match initial == *self.facts.entry(bb.id).or_default() {
+            true => TransferResult::NonChanged,
+            false => TransferResult::Changed,
+        };
+
+        //eprintln!("{:?} in {:?}", result, bb.instrs.first());
+        result
+    }
+
+    /// Transform a basic block based on the fact it has acquired, this is only after fix-point
+    fn transform(&mut self, bb: &mut BasicBlock) {
+        let mut keep = Vec::<InstructionOrLabel>::new();
+        for instr_label in bb.instrs.iter_mut() {
+            if let InstructionOrLabel::Instruction(instr) = instr_label {
+                if instr.is_nonlinear() {
+                    keep.push(InstructionOrLabel::from(instr.clone()));
+                } else if let Some(LatticeValue::Dead) = self
+                    .facts
+                    .entry(bb.id)
+                    .or_default()
+                    .get(&instr.dest.clone().unwrap_or_else(|| "|||||||".to_string()))
+                {
+                } else {
+                    keep.push(InstructionOrLabel::from(instr.clone()));
+                }
+            } else {
+                keep.push(instr_label.clone());
+            }
+        }
+        bb.instrs = keep;
+    }
+
+    fn get_dataflow_direction(&self) -> bril::cfg::DataFlowDirection {
+        DataFlowDirection::Backward
+    }
+}
 fn main() {
     let prog = Program::stdin();
 
-    let mut cfg = CFG::from_program(prog);
+    let cfg = CFG::from_program(prog);
+    let mut d = LivenessAnalysis::new();
+    cfg.dataflow(&mut d);
 
-    cfg.dataflow_backward(backward_meet, backward_transfer, transform);
-    let prog2 = cfg.to_program();
-    let cfg2 = CFG::from_program(prog2.clone());
-    cfg2.dataflow_backward(backward_meet, backward_transfer, transform);
-    prog2.stdout()
+    let out_prog = cfg.to_program();
+    out_prog.stdout()
 }

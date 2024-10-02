@@ -29,17 +29,19 @@ use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 //        Self::InstructionOrLabel(instr)
 //    }
 //}
-
-#[derive(Debug)]
-pub struct BasicBlock<T> {
+pub struct BasicBlock {
     func: Option<Function>,
-    id: u32,
+    pub id: usize,
     pub instrs: Vec<InstructionOrLabel>,
-    pub facts: HashMap<String, T>,
-    pub predecessors: Vec<Rc<RefCell<BasicBlock<T>>>>,
-    pub successors: Vec<Rc<RefCell<BasicBlock<T>>>>,
+    pub predecessors: Vec<Rc<RefCell<BasicBlock>>>,
+    pub successors: Vec<Rc<RefCell<BasicBlock>>>,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum DataFlowDirection {
+    Forward,
+    Backward,
+}
 #[derive(Debug, PartialEq)]
 pub enum TransferResult {
     Changed,
@@ -52,7 +54,20 @@ pub enum ConditionalTransferResult {
     SecondPathTaken,
     NoPathTaken,
 }
-impl<T: std::fmt::Debug> std::fmt::Display for BasicBlock<T> {
+
+pub trait DataFlowAnalysis {
+    fn meet(&mut self, bb: &mut BasicBlock);
+    fn transfer(&mut self, bb: &mut BasicBlock) -> TransferResult;
+    fn transform(&mut self, bb: &mut BasicBlock);
+    fn get_dataflow_direction(&self) -> DataFlowDirection;
+}
+
+pub trait ConditionalDataFlowAnalysis {
+    fn meet(&mut self, bb: &mut BasicBlock);
+    fn transfer(&mut self, bb: &mut BasicBlock) -> ConditionalTransferResult;
+    fn transform(&mut self, bb: &mut BasicBlock);
+}
+impl std::fmt::Debug for BasicBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -75,53 +90,48 @@ impl<T: std::fmt::Debug> std::fmt::Display for BasicBlock<T> {
     }
 }
 
-impl<T> Hash for BasicBlock<T> {
+impl Hash for BasicBlock {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
     }
 }
 
-impl<T> PartialEq for BasicBlock<T> {
+impl PartialEq for BasicBlock {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
 }
 
-impl<T> Eq for BasicBlock<T> {}
+impl Eq for BasicBlock {}
 
-impl<FactType> BasicBlock<FactType>
-where
-    FactType: Debug,
-{
+impl BasicBlock {
     pub fn as_txt_instructions(self) -> String {
         let _result = String::new();
         todo!()
     }
-    pub fn default(id: u32) -> BasicBlock<FactType> {
+    pub fn default(id: usize) -> BasicBlock {
         Self {
             func: None,
             id,
             instrs: Vec::new(),
             predecessors: Vec::new(),
             successors: Vec::new(),
-            facts: HashMap::new(),
         }
     }
 
     pub fn simple_basic_blocks_vec_from_function(
         f: Function,
-        id: &mut u32,
-    ) -> Vec<Rc<RefCell<BasicBlock<FactType>>>> {
-        let mut result: Vec<Rc<RefCell<BasicBlock<FactType>>>> = Vec::new();
+        id: &mut usize,
+    ) -> Vec<Rc<RefCell<BasicBlock>>> {
+        let mut result: Vec<Rc<RefCell<BasicBlock>>> = Vec::new();
         let mut i = 0;
         // let mut last_instruction_before_construction = 0;
         let mut non_linear_before = false;
         while i < f.instrs.len() {
             // this match only happens if instruction is at start of function or after a branch
             // without label
-            let b: BasicBlock<FactType> = BasicBlock::default(*id);
-            let bb: Rc<RefCell<BasicBlock<FactType>>> =
-                Rc::<RefCell<BasicBlock<FactType>>>::new(b.into());
+            let b: BasicBlock = BasicBlock::default(*id);
+            let bb: Rc<RefCell<BasicBlock>> = Rc::<RefCell<BasicBlock>>::new(b.into());
             *id += 1;
             if result.is_empty() {
                 bb.borrow_mut().func = Some(f.clone());
@@ -172,17 +182,15 @@ where
     }
 }
 #[derive(Debug)]
-pub struct CFG<T> {
-    pub hm: HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock<T>>>>,
+pub struct CFG {
+    pub hm: HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>>,
 }
 // main:
 // @main
-impl<T: std::fmt::Debug> CFG<T> {
-    pub fn hm_from_function(
-        f: Function,
-    ) -> HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock<T>>>> {
+impl CFG {
+    pub fn hm_from_function(f: Function) -> HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>> {
         // O(n)
-        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock<T>>>>::new();
+        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
 
         let mut basic_block_counter = 0;
         let simple_basic_blocks_vec_from_function =
@@ -199,7 +207,7 @@ impl<T: std::fmt::Debug> CFG<T> {
         // O(n)
     }
     pub fn from_program(p: Program) -> Self {
-        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock<T>>>>::new();
+        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
 
         let mut basic_block_counter = 0;
         // Iterate to put basic blocks into the graph
@@ -278,7 +286,7 @@ impl<T: std::fmt::Debug> CFG<T> {
 
         // The function is here just because we want to maintain the initial order of function in
         // textual IR
-        let mut sorted_by_func_id: Vec<Rc<RefCell<BasicBlock<T>>>> =
+        let mut sorted_by_func_id: Vec<Rc<RefCell<BasicBlock>>> =
             self.hm.values().cloned().collect();
 
         // Sort the vector by the 'id' field
@@ -292,9 +300,9 @@ impl<T: std::fmt::Debug> CFG<T> {
         p
     }
 
-    fn insert_instr_func(&self, bb: Rc<RefCell<BasicBlock<T>>>) -> Function {
-        let mut visited = HashSet::<u32>::default();
-        let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
+    fn insert_instr_func(&self, bb: Rc<RefCell<BasicBlock>>) -> Function {
+        let mut visited = HashSet::<usize>::default();
+        let mut q = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
         let mut vec_instr = Vec::<InstructionOrLabel>::new();
         q.push_back(bb.clone());
         visited.insert(bb.borrow().id);
@@ -329,20 +337,11 @@ impl<T: std::fmt::Debug> CFG<T> {
             eprintln!("{:?}", i.1.borrow())
         }
     }
-    pub fn dataflow_forward_optimistically<F1, F2, F3>(
-        &self,
-        mut meet_func: F1,
-        mut transfer_func: F2,
-        mut optimize_func: F3,
-    ) where
-        F1: FnMut(&mut BasicBlock<T>),
-        F2: FnMut(&mut BasicBlock<T>) -> ConditionalTransferResult,
-        F3: FnMut(&mut BasicBlock<T>),
-    {
+    pub fn dataflow_forward_optimistically(&self, d: &mut impl ConditionalDataFlowAnalysis) {
         // do the dataflow optimistically
         //
         //
-        let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
+        let mut q = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
         for i in self.hm.clone() {
             if i.1.borrow_mut().func.is_some() {
                 q.push_back(i.1.clone());
@@ -350,10 +349,9 @@ impl<T: std::fmt::Debug> CFG<T> {
             while !q.is_empty() {
                 let visit_bb = q.pop_front().expect("hi").clone();
                 // visit_bb.borrow_mut();
-                let s = visit_bb.borrow().instrs.first().unwrap().clone();
-                meet_func(&mut visit_bb.borrow_mut());
+                d.meet(&mut visit_bb.borrow_mut());
 
-                let transfer_result = transfer_func(&mut visit_bb.borrow_mut());
+                let transfer_result = d.transfer(&mut visit_bb.borrow_mut());
                 match transfer_result {
                     ConditionalTransferResult::AllPathTaken => {
                         q.extend(visit_bb.borrow_mut().successors.clone())
@@ -371,23 +369,14 @@ impl<T: std::fmt::Debug> CFG<T> {
         }
 
         for i in self.hm.iter() {
-            optimize_func(&mut i.1.borrow_mut())
+            d.transform(&mut i.1.borrow_mut())
         }
     }
-    pub fn dataflow_forward<F1, F2, F3>(
-        &self,
-        mut meet_func: F1,
-        mut transfer_func: F2,
-        mut optimize_func: F3,
-    ) where
-        F1: FnMut(&mut BasicBlock<T>),
-        F2: FnMut(&mut BasicBlock<T>) -> TransferResult,
-        F3: FnMut(&mut BasicBlock<T>),
-    {
+    pub fn dataflow(&self, d: &mut impl DataFlowAnalysis) {
         // do the dataflow
         //
         //
-        let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
+        let mut q = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
         for i in self.hm.clone() {
             if i.1.borrow_mut().func.is_some() {
                 q.extend(Self::bfs_children(&mut i.1.clone()));
@@ -395,57 +384,28 @@ impl<T: std::fmt::Debug> CFG<T> {
             while !q.is_empty() {
                 let visit_bb = q.pop_front().expect("hi").clone();
                 // visit_bb.borrow_mut();
-                meet_func(&mut visit_bb.borrow_mut());
+                d.meet(&mut visit_bb.borrow_mut());
 
-                if transfer_func(&mut visit_bb.borrow_mut()) == TransferResult::Changed {
-                    q.extend(visit_bb.borrow_mut().successors.clone());
+                if d.transfer(&mut visit_bb.borrow_mut()) == TransferResult::Changed {
+                    if d.get_dataflow_direction() == DataFlowDirection::Forward {
+                        q.extend(visit_bb.borrow_mut().successors.clone());
+                    } else if d.get_dataflow_direction() == DataFlowDirection::Backward {
+                        q.extend(visit_bb.borrow_mut().predecessors.clone());
+                    }
                 }
             }
         }
 
         for i in self.hm.iter() {
-            optimize_func(&mut i.1.borrow_mut())
+            d.transform(&mut i.1.borrow_mut())
         }
     }
 
-    pub fn dataflow_backward<F1, F2, F3>(
-        &self,
-        mut meet_func: F1,
-        mut transfer_func: F2,
-        mut optimize_func: F3,
-    ) where
-        F1: FnMut(&mut BasicBlock<T>),
-        F2: FnMut(&mut BasicBlock<T>) -> TransferResult,
-        F3: FnMut(&mut BasicBlock<T>),
-    {
-        // do the dataflow
-        //
-        //
-        let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
-        for i in self.hm.clone() {
-            if i.1.borrow_mut().func.is_some() {
-                q.extend(Self::bfs_children(&mut i.1.clone()));
-            }
-            while !q.is_empty() {
-                let visit_bb = q.pop_front().expect("hi").clone();
-                // visit_bb.borrow_mut();
-                meet_func(&mut visit_bb.borrow_mut());
-
-                if transfer_func(&mut visit_bb.borrow_mut()) == TransferResult::Changed {
-                    q.extend(visit_bb.borrow_mut().predecessors.clone());
-                }
-            }
-        }
-
-        for i in self.hm.iter() {
-            optimize_func(&mut i.1.borrow_mut())
-        }
-    }
     // fn dfs_children(bb: &mut BasicBlock<T>) {}
-    fn bfs_children(bb: &mut Rc<RefCell<BasicBlock<T>>>) -> VecDeque<Rc<RefCell<BasicBlock<T>>>> {
+    fn bfs_children(bb: &mut Rc<RefCell<BasicBlock>>) -> VecDeque<Rc<RefCell<BasicBlock>>> {
         let mut visited = HashSet::<InstructionOrLabel>::default();
-        let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
-        let mut result = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
+        let mut q = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
+        let mut result = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
 
         q.push_back(bb.clone());
         result.push_back(bb.clone());

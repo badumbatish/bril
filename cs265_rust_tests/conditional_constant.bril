@@ -1,4 +1,4 @@
-# RUN: cat %s | bril2json | ../target/debug/optimistic_const_prop| grep -v "add i j"
+# RUN: cat %s | bril2json | ../target/debug/optimistic_const_prop| bril2txt | grep -v "add i j"
 @if_else_block_1{
     i : int = const 1;
     zero : int = const 0;

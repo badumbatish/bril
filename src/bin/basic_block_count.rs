@@ -4,7 +4,7 @@ fn main() {
     // Filter out "nop" instructions for each function
     let prog = Program::stdin();
 
-    let cfg = CFG::<String>::from_program(prog);
+    let cfg = CFG::from_program(prog);
 
     println!("Block count : {}", cfg.hm.len());
 
