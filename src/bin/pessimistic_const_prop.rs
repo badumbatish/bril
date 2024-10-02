@@ -5,7 +5,7 @@ use bril::cfg::{BasicBlock, TransferResult, CFG};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
     Dominator,
-    Constant(u64),
+    Constant(i64),
 }
 
 /// Combine lattice value based on the lattice value type

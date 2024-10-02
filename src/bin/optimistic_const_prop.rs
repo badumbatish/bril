@@ -6,7 +6,7 @@ use bril::cfg::{BasicBlock, ConditionalTransferResult, CFG};
 pub enum LatticeValue {
     Dominator,
     Dominated,
-    ConstantInt(u64),
+    ConstantInt(i64),
     ConstantBool(bool),
 }
 /// Combine lattice value based on the lattice value type
@@ -83,7 +83,8 @@ pub fn lattice_value_transfer(
                         .expect("Failed to parse value "),
                 ),
             ))
-        } else {
+        } else if instr.bril_type.is_some() && *instr.bril_type.as_ref().unwrap() == BrilType::Bool
+        {
             Some((
                 instr.clone().dest?,
                 LatticeValue::ConstantBool(
@@ -91,6 +92,8 @@ pub fn lattice_value_transfer(
                         .expect("Failed to parse value "),
                 ),
             ))
+        } else {
+            None
         }
     } else if instr.is_id() {
         match facts.get(&instr.args.clone().unwrap()[0]) {

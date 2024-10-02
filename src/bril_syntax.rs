@@ -12,6 +12,7 @@ pub enum BrilType {
     // INFO: Technically we have a third option which is parameterized type
     Int,
     Bool,
+    Float,
 }
 
 impl Display for BrilType {
@@ -19,6 +20,7 @@ impl Display for BrilType {
         match self {
             BrilType::Int => write!(f, "int"),
             BrilType::Bool => write!(f, "bool"),
+            BrilType::Float => write!(f, "float"),
         }
     }
 }
@@ -41,8 +43,8 @@ pub struct Instruction {
     pub funcs: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub labels: Option<Vec<String>>,
-    // #[serde(flatten)]
-    // pub other_fields: Value, // Store unknown fields here
+    #[serde(flatten)]
+    pub other_fields: Value, // Store unknown fields here
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
@@ -117,7 +119,7 @@ pub struct Program {
 
 impl Instruction {
     pub fn is_phi(&self) -> bool {
-         &self.op == "phi"
+        &self.op == "phi"
     }
     pub fn is_add(&self) -> bool {
         &self.op == "add"
