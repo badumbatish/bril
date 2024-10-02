@@ -2,8 +2,8 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
     fmt::Debug,
-    rc::Rc,
     hash::{Hash, Hasher},
+    rc::Rc,
 };
 
 use crate::bril_syntax::{Function, InstructionOrLabel, Program};
@@ -217,7 +217,7 @@ impl<T: std::fmt::Debug> CFG<T> {
                 match bi.instrs.clone().last() {
                     Some(instr) => match instr {
                         InstructionOrLabel::Label(_) => {
-                            eprintln!("This should not happen in CFG::from_program")
+                            //eprintln!("This should not happen in CFG::from_program")
                         }
                         InstructionOrLabel::Instruction(ins) => {
                             if ins.is_br() {
@@ -361,7 +361,7 @@ impl<T: std::fmt::Debug> CFG<T> {
                         q.extend(visit_bb.borrow_mut().successors.clone())
                     }
                     ConditionalTransferResult::FirstPathTaken => {
-                        eprintln!("First path taken, from {}", s);
+                        //eprintln!("First path taken, from {}", s);
                         q.push_back(visit_bb.borrow_mut().successors[0].clone())
                     }
                     ConditionalTransferResult::SecondPathTaken => {
