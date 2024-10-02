@@ -222,7 +222,7 @@ pub fn lattice_value_transfer(
 /// Meet all the successor block based on the instruction's dest and LatticeValue
 pub fn forward_meet(bb: &mut BasicBlock<LatticeValue>) {
     let mut hs = HashMap::<String, LatticeValue>::new();
-
+    //eprintln!("Hello in {:?}", bb.instrs.first());
     //  In all predecessors's facts, we union them via the rule of
     //  combine_lattice_value
     for i in bb.predecessors.iter() {
@@ -251,9 +251,13 @@ pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> ConditionalTransfe
         }
     }
 
-    match bb.instrs.last() {
+    let result = match bb.instrs.last() {
         Some(instr_lb) => match instr_lb {
-            InstructionOrLabel::Label(_) => ConditionalTransferResult::AllPathTaken,
+            InstructionOrLabel::Label(_) => match initial == bb.facts {
+                true => ConditionalTransferResult::NoPathTaken,
+                false => ConditionalTransferResult::AllPathTaken,
+            },
+
             InstructionOrLabel::Instruction(instruction) => {
                 if instruction.is_br() {
                     match bb.facts.get(&instruction.args.clone().unwrap().clone()[0]) {
@@ -263,7 +267,10 @@ pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> ConditionalTransfe
                         Some(LatticeValue::ConstantBool(false)) => {
                             ConditionalTransferResult::SecondPathTaken
                         }
-                        _ => ConditionalTransferResult::AllPathTaken,
+                        _ => match initial == bb.facts {
+                            true => ConditionalTransferResult::NoPathTaken,
+                            false => ConditionalTransferResult::AllPathTaken,
+                        },
                     }
                 } else {
                     match initial == bb.facts {
@@ -274,7 +281,10 @@ pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> ConditionalTransfe
             }
         },
         None => panic!("Logically cannot happen"),
-    }
+    };
+
+    //eprintln!("Result {:?}", result);
+    result
 }
 
 /// Transform a basic block based on the fact it has acquired, this is only after fix-point

@@ -45,7 +45,7 @@ pub enum TransferResult {
     Changed,
     NonChanged,
 }
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ConditionalTransferResult {
     AllPathTaken,
     FirstPathTaken,
