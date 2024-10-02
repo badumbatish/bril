@@ -64,7 +64,7 @@ pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) ->
         (None, None) => LatticeValue::Dominated,
         (_, _) => LatticeValue::Dominator,
     };
-    eprintln!("{:?} : {:?} : {:?}", meet_value, q, p);
+    //eprintln!("{:?} : {:?} : {:?}", meet_value, q, p);
     meet_value
 }
 
@@ -225,7 +225,7 @@ pub fn forward_meet(bb: &mut BasicBlock<LatticeValue>) {
     for i in bb.predecessors.iter() {
         for l in i.borrow_mut().facts.clone() {
             let v = hs.get(&l.0);
-            eprintln!("Meet of {:?} in {:?}", l.0, bb.instrs.first());
+            //eprintln!("Meet of {:?} in {:?}", l.0, bb.instrs.first());
             let res = lattice_value_meet(v, Some(&l.1));
 
             hs.insert(l.0, res);
@@ -238,11 +238,11 @@ pub fn forward_meet(bb: &mut BasicBlock<LatticeValue>) {
 /// Transfer the facts in the block forwards
 pub fn forward_transfer(bb: &mut BasicBlock<LatticeValue>) -> ConditionalTransferResult {
     let initial = bb.facts.clone();
-    eprintln!("Transferring in {:?}", bb.instrs.first());
+    //eprintln!("Transferring in {:?}", bb.instrs.first());
     for instr_label in bb.instrs.clone() {
         if let InstructionOrLabel::Instruction(instr) = instr_label {
             if let Some((a, b)) = lattice_value_transfer(&instr, &bb.facts) {
-                eprintln!("Transferring in {:?}: {:?} - {:?}", bb.instrs.first(), a, b);
+                //eprintln!("Transferring in {:?}: {:?} - {:?}", bb.instrs.first(), a, b);
                 bb.facts.insert(a, b);
             }
         }
