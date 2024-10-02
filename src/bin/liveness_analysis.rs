@@ -6,19 +6,23 @@ use bril::cfg::{BasicBlock, TransferResult, CFG};
 pub enum LatticeValue {
     Alisa,
     Dead,
+    StrongAlisa,
 }
 
 /// Combine lattice value based on the lattice value type
 /// This is called in a meet function on each instruction
 pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) -> LatticeValue {
     // We don't dare delete a value if it is not dead yet, let's be conservative
+    // eprintln!("Meet of {:?} in {:?}", l.0, bb.instrs.first());
     match (q, p) {
         (Some(a), Some(b)) => match (a, b) {
             (LatticeValue::Alisa, LatticeValue::Alisa) => LatticeValue::Alisa,
             (LatticeValue::Alisa, LatticeValue::Dead) => LatticeValue::Alisa,
             (LatticeValue::Dead, LatticeValue::Dead) => LatticeValue::Dead,
             (LatticeValue::Dead, LatticeValue::Alisa) => LatticeValue::Alisa,
+            (_, _) => LatticeValue::StrongAlisa,
         },
+        (Some(LatticeValue::Dead), None) => LatticeValue::Dead,
         (_, _) => LatticeValue::Alisa,
     }
 }
@@ -31,16 +35,48 @@ pub fn lattice_value_transfer(
 ) -> HashMap<String, LatticeValue> {
     let mut sub_facts = HashMap::<String, LatticeValue>::new();
 
-    if let Some(args) = &instr.args {
-        for arg in args {
-            sub_facts.insert(
-                arg.clone(),
-                lattice_value_meet(Some(&LatticeValue::Alisa), facts.get(&arg.clone())),
-            );
+    if instr.is_nonlinear()
+        || facts.get(&instr.dest.clone().unwrap_or("||||||||".to_string()))
+            == Some(&LatticeValue::StrongAlisa)
+    {
+        // All args are now strongly live
+        if let Some(args) = &instr.args {
+            for arg in args {
+                sub_facts.insert(
+                    arg.clone(),
+                    lattice_value_meet(Some(&LatticeValue::StrongAlisa), facts.get(&arg.clone())),
+                );
+            }
+        }
+    } else {
+        // All args are now live
+        if let Some(args) = &instr.args {
+            for arg in args {
+                sub_facts.insert(
+                    arg.clone(),
+                    lattice_value_meet(Some(&LatticeValue::Alisa), facts.get(&arg.clone())),
+                );
+            }
         }
     }
+    let dead = match instr.is_nonlinear()
+        || facts.get(&instr.dest.clone().unwrap_or("||||||||".to_string()))
+            == Some(&LatticeValue::StrongAlisa)
+    {
+        true => LatticeValue::StrongAlisa,
+        false => LatticeValue::Dead,
+    };
     if let Some(dest) = &instr.dest {
-        sub_facts.insert(dest.clone(), LatticeValue::Dead);
+        sub_facts.insert(
+            dest.clone(),
+            lattice_value_meet(
+                Some(&dead),
+                Some(&lattice_value_meet(
+                    sub_facts.get(&dest.clone()),
+                    facts.get(&dest.clone()),
+                )),
+            ),
+        );
     }
     sub_facts
 }
@@ -53,9 +89,9 @@ pub fn backward_meet(bb: &mut BasicBlock<LatticeValue>) {
     for i in bb.predecessors.iter() {
         for l in i.borrow_mut().facts.clone() {
             let v = hs.get(&l.0);
-            eprintln!("Meet of {:?} in {:?}", l.0, bb.instrs.first());
-            let res = lattice_value_meet(v, Some(&l.1));
 
+            let res = lattice_value_meet(v, Some(&l.1));
+            // eprintln!("Meet of {:?} in {:?}: meet value: {:?}", l.0, bb.instrs.first(), res);
             hs.insert(l.0, res);
         }
     }
@@ -66,7 +102,7 @@ pub fn backward_meet(bb: &mut BasicBlock<LatticeValue>) {
 /// Transfer the facts in the block forwards
 pub fn backward_transfer(bb: &mut BasicBlock<LatticeValue>) -> TransferResult {
     let initial = bb.facts.clone();
-    eprintln!("Transferring in {:?}", bb.instrs.first());
+    // eprintln!("Transferring in {:?}", bb.instrs.first());
     for instr_label in bb.instrs.clone() {
         if let InstructionOrLabel::Instruction(instr) = instr_label {
             let sub_facts = lattice_value_transfer(&instr, &bb.facts);
@@ -111,5 +147,4 @@ fn main() {
     let prog = cfg.to_program();
 
     prog.stdout()
-    // cfg.print_hm();
 }
