@@ -110,7 +110,7 @@ pub struct Function {
     // pub other_fields: Value, // Store unknown fields here
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Program {
     pub functions: Vec<Function>,
     // #[serde(flatten)]

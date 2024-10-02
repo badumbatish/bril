@@ -26,7 +26,7 @@ pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) ->
         (None, Some(LatticeValue::Dead)) => LatticeValue::Dead,
         (Some(LatticeValue::StrongAlisa), _) => LatticeValue::StrongAlisa,
         (_, Some(LatticeValue::StrongAlisa)) => LatticeValue::StrongAlisa,
-        (_, _) => LatticeValue::Alisa,
+        (_, _) => LatticeValue::Dead,
     }
 }
 
@@ -147,10 +147,11 @@ pub fn transform(bb: &mut BasicBlock<LatticeValue>) {
 fn main() {
     let prog = Program::stdin();
 
-    let cfg = CFG::from_program(prog);
+    let mut cfg = CFG::from_program(prog);
 
     cfg.dataflow_backward(backward_meet, backward_transfer, transform);
-    let prog = cfg.to_program();
-
-    prog.stdout()
+    let prog2 = cfg.to_program();
+    let cfg2 = CFG::from_program(prog2.clone());
+    cfg2.dataflow_backward(backward_meet, backward_transfer, transform);
+    prog2.stdout()
 }

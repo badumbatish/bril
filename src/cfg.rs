@@ -293,20 +293,18 @@ impl<T: std::fmt::Debug> CFG<T> {
     }
 
     fn insert_instr_func(&self, bb: Rc<RefCell<BasicBlock<T>>>) -> Function {
-        let mut visited = HashSet::<InstructionOrLabel>::default();
+        let mut visited = HashSet::<u32>::default();
         let mut q = VecDeque::<Rc<RefCell<BasicBlock<T>>>>::default();
-
         let mut vec_instr = Vec::<InstructionOrLabel>::new();
         q.push_back(bb.clone());
-
-        visited.insert(bb.borrow().instrs.first().unwrap().clone());
+        visited.insert(bb.borrow().id);
         let mut v = Vec::default();
         v.push(bb.clone());
         while !q.is_empty() {
             let visit_bb = q.pop_front().unwrap();
 
             for succ in visit_bb.borrow().successors.iter().rev() {
-                let a = succ.borrow().instrs.first().unwrap().clone();
+                let a = succ.borrow().id;
                 if !visited.contains(&a) {
                     q.push_back(succ.clone());
                     v.push(succ.clone());
