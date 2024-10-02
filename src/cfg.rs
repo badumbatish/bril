@@ -40,7 +40,7 @@ pub struct BasicBlock<T> {
     pub successors: Vec<Rc<RefCell<BasicBlock<T>>>>,
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum TransferResult {
     Changed,
     NonChanged,

@@ -23,6 +23,9 @@ pub fn lattice_value_meet(q: Option<&LatticeValue>, p: Option<&LatticeValue>) ->
             (_, _) => LatticeValue::StrongAlisa,
         },
         (Some(LatticeValue::Dead), None) => LatticeValue::Dead,
+        (None, Some(LatticeValue::Dead)) => LatticeValue::Dead,
+        (Some(LatticeValue::StrongAlisa), _) => LatticeValue::StrongAlisa,
+        (_, Some(LatticeValue::StrongAlisa)) => LatticeValue::StrongAlisa,
         (_, _) => LatticeValue::Alisa,
     }
 }
@@ -111,10 +114,13 @@ pub fn backward_transfer(bb: &mut BasicBlock<LatticeValue>) -> TransferResult {
         }
     }
 
-    match initial == bb.facts {
+    let result = match initial == bb.facts {
         true => TransferResult::NonChanged,
         false => TransferResult::Changed,
-    }
+    };
+
+    //eprintln!("{:?} in {:?}", result, bb.instrs.first());
+    result
 }
 
 /// Transform a basic block based on the fact it has acquired, this is only after fix-point
