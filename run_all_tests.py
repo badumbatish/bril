@@ -32,9 +32,9 @@ def run_command_on_files(bril_files, command_template):
 
 
 if __name__ == "__main__":
-    directory_to_search = "./benchmarks/core/"
+    directory_to_search = "./examples/test/"
 
-    all_command = "cat {file} | bril2json | ./target/debug/liveness_analysis | ./target/debug/optimistic_const_prop | ./target/debug/pessimistic_const_prop | bril2txt | wc -l"
+    all_command = "cat {file} | bril2json | ./target/debug/liveness_analysis | ./target/debug/optimistic_const_prop | bril2txt | wc -l"
     liveness_command = "cat {file} | bril2json | ./target/debug/liveness_analysis | bril2txt | wc -l"
     opt_const_prop_command = "cat {file} | bril2json | ./target/debug/optimistic_const_prop | bril2txt | wc -l"
     pes_const_prop_command = "cat {file} | bril2json | ./target/debug/pessimistic_const_prop | bril2txt | wc -l"
@@ -44,13 +44,23 @@ if __name__ == "__main__":
 
     if bril_files:
         # print(f"Found {len(bril_files)} .bril files.")
+        for file in bril_files:
+            print(file)
+        print("1")
         live_res = run_command_on_files(bril_files, liveness_command)
+        print("2")
         opt_res = run_command_on_files(bril_files, opt_const_prop_command)
-        pes_res = run_command_on_files(bril_files, pes_const_prop_command)
+        # pes_res = run_command_on_files(bril_files, pes_const_prop_command)
+        print("3")
         all_res = run_command_on_files(bril_files, all_command)
+        print("4")
         none_res = run_command_on_files(bril_files, none_command)
     else:
         print("No .bril files found.")
     
-    for a, b, c, d, e in zip(none_res, live_res, opt_res, pes_res, all_res):
-        print(a, b, c, d, e)
+    print("Optimizations: None, Liveness, Optimization, All")
+    print("Lines of code left:")
+    for a, b, c, d in zip(none_res, live_res, opt_res, all_res):
+    # print("Optimizations: None, Liveness, Optimization, All")
+      #   print("Lines of code left:")
+        print(a, b, c, d)
