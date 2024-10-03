@@ -25,10 +25,13 @@ impl DominanceDataFlow {
         for i in cfg.hm.clone() {
             // INITIALIZE EACH OF THE DOM SET
             let idb = i.1.borrow().id;
-            result.domset.entry(idb).or_default();
-            //for ins in 0..cfg.hm.len() {
-            //    result.domset.entry(idb).or_default().insert(ins);
-            //}
+            if i.1.borrow().func.is_some() {
+                result.domset.entry(idb).or_default().insert(idb);
+            } else {
+                for ins in 0..cfg.hm.len() {
+                    result.domset.entry(idb).or_default().insert(ins);
+                }
+            }
 
             // INITIALIZE EACH OF THE DOM TREE
             result.domtree.entry(idb).or_default();
@@ -168,6 +171,6 @@ impl DataFlowAnalysis for DominanceDataFlow {
     }
 
     fn get_dataflow_order(&self) -> DataFlowOrder {
-        DataFlowOrder::EntryNodesOnly
+        DataFlowOrder::BFS
     }
 }

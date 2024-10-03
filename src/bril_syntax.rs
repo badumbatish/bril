@@ -65,7 +65,11 @@ pub enum InstructionOrLabel {
     Label(Label),
     Instruction(Instruction),
 }
-
+impl InstructionOrLabel {
+    pub fn new_dummy_head(header_name: String) -> Self {
+        InstructionOrLabel::Label(Label { label: header_name })
+    }
+}
 impl Display for InstructionOrLabel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

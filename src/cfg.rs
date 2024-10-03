@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     fmt::Debug,
     hash::{Hash, Hasher},
     rc::Rc,
@@ -131,6 +131,17 @@ impl BasicBlock {
     ) -> Vec<Rc<RefCell<BasicBlock>>> {
         let mut result: Vec<Rc<RefCell<BasicBlock>>> = Vec::new();
         let mut i = 0;
+        let entry_bb = BasicBlock::default(*id);
+        let entry_bb_rcf: Rc<RefCell<BasicBlock>> = Rc::<RefCell<BasicBlock>>::new(entry_bb.into());
+        let entry_header_name = "entry".to_string() + &f.name;
+
+        entry_bb_rcf
+            .borrow_mut()
+            .instrs
+            .push(InstructionOrLabel::new_dummy_head(entry_header_name));
+        *id += 1;
+        entry_bb_rcf.borrow_mut().func = Some(f.clone());
+        result.push(entry_bb_rcf);
         // let mut last_instruction_before_construction = 0;
         let mut non_linear_before = false;
         while i < f.instrs.len() {
@@ -201,6 +212,7 @@ impl CFG {
         let mut basic_block_counter = 0;
         let simple_basic_blocks_vec_from_function =
             BasicBlock::simple_basic_blocks_vec_from_function(f, &mut basic_block_counter);
+
         for bb in simple_basic_blocks_vec_from_function {
             let bb_clone = bb.clone();
             hm.insert(
@@ -436,7 +448,6 @@ impl CFG {
 
         result
     }
-
     //pub fn to_dot_string(&self) -> String {
     //    let mut graph_as_string = String::from("digraph {\n");
     //
@@ -482,4 +493,15 @@ impl CFG {
     //}
     //
     //
+}
+
+impl CFG {
+    pub fn def_variables(&mut self) -> BTreeMap<String, BTreeSet<usize>> {
+        // For each blocks,
+        //   For each def in each block
+        //     Let a particular def be about v
+        //     Add def[v].insert(block)
+        todo!();
+        BTreeMap::default()
+    }
 }
