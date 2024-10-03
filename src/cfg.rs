@@ -30,7 +30,7 @@ use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 //    }
 //}
 pub struct BasicBlock {
-    func: Option<Function>,
+    pub func: Option<Function>,
     pub id: usize,
     pub instrs: Vec<InstructionOrLabel>,
     pub predecessors: Vec<Rc<RefCell<BasicBlock>>>,
@@ -54,12 +54,18 @@ pub enum ConditionalTransferResult {
     SecondPathTaken,
     NoPathTaken,
 }
-
+#[derive(Debug, PartialEq)]
+pub enum DataFlowOrder {
+    EntryNodesOnly,
+    PostOrderDFS,
+    BFS,
+}
 pub trait DataFlowAnalysis {
     fn meet(&mut self, bb: &mut BasicBlock);
     fn transfer(&mut self, bb: &mut BasicBlock) -> TransferResult;
     fn transform(&mut self, bb: &mut BasicBlock);
     fn get_dataflow_direction(&self) -> DataFlowDirection;
+    fn get_dataflow_order(&self) -> DataFlowOrder;
 }
 
 pub trait ConditionalDataFlowAnalysis {
@@ -331,7 +337,7 @@ impl CFG {
         func
     }
 
-    pub fn print_hm(self) {
+    pub fn print_hm(&self) {
         for i in self.hm.iter() {
             eprintln!("{:?}", i.0);
             eprintln!("{:?}", i.1.borrow())
@@ -372,6 +378,7 @@ impl CFG {
             d.transform(&mut i.1.borrow_mut())
         }
     }
+
     pub fn dataflow(&self, d: &mut impl DataFlowAnalysis) {
         // do the dataflow
         //
@@ -379,18 +386,22 @@ impl CFG {
         let mut q = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
         for i in self.hm.clone() {
             if i.1.borrow_mut().func.is_some() {
-                q.extend(Self::bfs_children(&mut i.1.clone()));
-            }
-            while !q.is_empty() {
-                let visit_bb = q.pop_front().expect("hi").clone();
-                // visit_bb.borrow_mut();
-                d.meet(&mut visit_bb.borrow_mut());
+                match d.get_dataflow_order() {
+                    DataFlowOrder::EntryNodesOnly => q.push_back(i.1.clone()),
+                    DataFlowOrder::BFS => q.extend(Self::bfs_children(&mut i.1.clone())),
+                    DataFlowOrder::PostOrderDFS => todo!(),
+                }
+                while !q.is_empty() {
+                    let visit_bb = q.pop_front().expect("hi").clone();
+                    // visit_bb.borrow_mut();
+                    d.meet(&mut visit_bb.borrow_mut());
 
-                if d.transfer(&mut visit_bb.borrow_mut()) == TransferResult::Changed {
-                    if d.get_dataflow_direction() == DataFlowDirection::Forward {
-                        q.extend(visit_bb.borrow_mut().successors.clone());
-                    } else if d.get_dataflow_direction() == DataFlowDirection::Backward {
-                        q.extend(visit_bb.borrow_mut().predecessors.clone());
+                    if d.transfer(&mut visit_bb.borrow_mut()) == TransferResult::Changed {
+                        if d.get_dataflow_direction() == DataFlowDirection::Forward {
+                            q.extend(visit_bb.borrow_mut().successors.clone());
+                        } else if d.get_dataflow_direction() == DataFlowDirection::Backward {
+                            q.extend(visit_bb.borrow_mut().predecessors.clone());
+                        }
                     }
                 }
             }

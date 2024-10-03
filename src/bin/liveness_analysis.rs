@@ -173,6 +173,10 @@ impl DataFlowAnalysis for LivenessAnalysis {
     fn get_dataflow_direction(&self) -> bril::cfg::DataFlowDirection {
         DataFlowDirection::Backward
     }
+
+    fn get_dataflow_order(&self) -> bril::cfg::DataFlowOrder {
+        bril::cfg::DataFlowOrder::BFS
+    }
 }
 fn main() {
     let prog = Program::stdin();

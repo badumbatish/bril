@@ -13,6 +13,12 @@ pub enum LatticeValue {
 pub struct OptimisticConstProp {
     pub facts: HashMap<usize, HashMap<String, LatticeValue>>,
 }
+impl Default for OptimisticConstProp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimisticConstProp {
     pub fn new() -> Self {
         Self {
@@ -26,7 +32,9 @@ impl OptimisticConstProp {
         q: Option<&LatticeValue>,
         p: Option<&LatticeValue>,
     ) -> LatticeValue {
-        let meet_value = match (q, p) {
+        
+        //eprintln!("{:?} : {:?} : {:?}", meet_value, q, p);
+        match (q, p) {
             (Some(a), Some(b)) => match (a, b) {
                 (LatticeValue::Dominator, LatticeValue::Dominator) => LatticeValue::Dominator,
                 (LatticeValue::Dominator, LatticeValue::ConstantInt(_)) => LatticeValue::Dominator,
@@ -77,9 +85,7 @@ impl OptimisticConstProp {
             (_, Some(LatticeValue::Dominated)) => LatticeValue::Dominated,
             (None, None) => LatticeValue::Dominated,
             (_, _) => LatticeValue::Dominator,
-        };
-        //eprintln!("{:?} : {:?} : {:?}", meet_value, q, p);
-        meet_value
+        }
     }
 
     /// Combine lattice value based on the instruction type and the facts we have had

@@ -11,6 +11,12 @@ pub enum LatticeValue {
 pub struct PessimisticConstProp {
     pub facts: HashMap<usize, HashMap<String, LatticeValue>>,
 }
+impl Default for PessimisticConstProp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PessimisticConstProp {
     pub fn new() -> Self {
         Self {
@@ -177,6 +183,10 @@ impl DataFlowAnalysis for PessimisticConstProp {
                 }
             }
         }
+    }
+
+    fn get_dataflow_order(&self) -> bril::cfg::DataFlowOrder {
+        bril::cfg::DataFlowOrder::BFS
     }
 }
 
