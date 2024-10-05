@@ -1,3 +1,4 @@
+use crate::dominance::DominanceDataFlow;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
@@ -5,8 +6,8 @@ use std::{
     hash::{Hash, Hasher},
     rc::Rc,
 };
-
-use crate::bril_syntax::{Function, Instruction, InstructionOrLabel, Program};
+pub type BlockID = usize;
+use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 
 // Maybe this will be useful in the future but for now a leader is the first instruction in the
 // block
@@ -31,7 +32,7 @@ use crate::bril_syntax::{Function, Instruction, InstructionOrLabel, Program};
 //}
 pub struct BasicBlock {
     pub func: Option<Function>,
-    pub id: usize,
+    pub id: BlockID,
     pub instrs: VecDeque<InstructionOrLabel>,
     pub predecessors: Vec<Rc<RefCell<BasicBlock>>>,
     pub successors: Vec<Rc<RefCell<BasicBlock>>>,
@@ -111,6 +112,77 @@ impl PartialEq for BasicBlock {
 impl Eq for BasicBlock {}
 
 impl BasicBlock {
+    pub fn insert_phi_def(&mut self, def: &String, label: InstructionOrLabel) {
+        eprintln!("Insert phi def into {}", self.id);
+        for i in self.instrs.iter_mut() {
+            match i {
+                InstructionOrLabel::Instruction(p) => {
+                    if p.is_phi() && p.dest.as_ref().unwrap() == def {
+                        if p.labels.is_none() {
+                            p.labels = Some(Vec::new());
+                        }
+                        if p.args.is_none() {
+                            p.args = Some(Vec::new());
+                        }
+                        p.labels.as_mut().unwrap().push(label.to_string());
+                        p.args.as_mut().unwrap().push(def.to_string());
+                        return;
+                    }
+                }
+                _ => continue,
+            }
+        }
+
+        self.instrs
+            .insert(1, InstructionOrLabel::new_phi(def.clone()));
+
+        for i in self.instrs.iter_mut() {
+            match i {
+                InstructionOrLabel::Instruction(p) => {
+                    if p.is_phi() && p.dest.as_ref().unwrap() == def {
+                        if p.labels.is_none() {
+                            p.labels = Some(Vec::new());
+                        }
+                        if p.args.is_none() {
+                            p.args = Some(Vec::new());
+                        }
+                        p.labels.as_mut().unwrap().push(label.to_string());
+                        p.args.as_mut().unwrap().push(def.to_string());
+                        return;
+                    }
+                }
+                _ => continue,
+            }
+        }
+    }
+
+    // Contains empty phi def
+    pub fn contains_empty_phi_def(&self, def: &String) -> bool {
+        self.instrs.iter().any(|x| {
+            if let InstructionOrLabel::Instruction(i) = x {
+                i.is_phi()
+                    && i.dest.is_some()
+                    && i.dest.clone().unwrap() == *def
+                    && (i.labels.is_none() || i.labels.clone().unwrap().is_empty())
+            } else {
+                false
+            }
+        })
+    }
+    // Check if the current block contains any phi definition about def variable
+    pub fn contains_phi_def(&self, def: &String, label: InstructionOrLabel) -> bool {
+        self.instrs.iter().any(|x| {
+            if let InstructionOrLabel::Instruction(i) = x {
+                i.is_phi()
+                    && i.dest.is_some()
+                    && i.dest.clone().unwrap() == *def
+                    && i.labels.is_some()
+                    && i.labels.clone().unwrap().contains(&label.to_string())
+            } else {
+                false
+            }
+        })
+    }
     pub fn get_definitions(&self) -> Vec<InstructionOrLabel> {
         self.instrs
             .clone()
@@ -128,7 +200,7 @@ impl BasicBlock {
         let _result = String::new();
         todo!()
     }
-    pub fn default(id: usize) -> BasicBlock {
+    pub fn default(id: BlockID) -> BasicBlock {
         Self {
             func: None,
             id,
@@ -140,7 +212,7 @@ impl BasicBlock {
 
     pub fn simple_basic_blocks_vec_from_function(
         f: Function,
-        id: &mut usize,
+        id: &mut BlockID,
     ) -> Vec<Rc<RefCell<BasicBlock>>> {
         let mut result: Vec<Rc<RefCell<BasicBlock>>> = Vec::new();
         let mut i = 0;
@@ -214,32 +286,40 @@ impl BasicBlock {
 #[derive(Debug)]
 pub struct CFG {
     pub hm: HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>>,
+    pub id_to_bb: HashMap<BlockID, Rc<RefCell<BasicBlock>>>,
 }
 // main:
 // @main
 impl CFG {
-    pub fn hm_from_function(f: Function) -> HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>> {
-        // O(n)
-        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
-
-        let mut basic_block_counter = 0;
-        let simple_basic_blocks_vec_from_function =
-            BasicBlock::simple_basic_blocks_vec_from_function(f, &mut basic_block_counter);
-
-        for bb in simple_basic_blocks_vec_from_function {
-            let bb_clone = bb.clone();
-            hm.insert(
-                bb_clone.borrow().instrs.front().unwrap().clone(),
-                bb.clone(),
-            );
-        }
-
-        hm
-        // O(n)
-    }
+    //pub fn components_from_function(
+    //    f: Function,
+    //) -> (
+    //    HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>>,
+    //    HashMap<BlockID, Rc<RefCell<BasicBlock>>>,
+    //) {
+    //    // O(n)
+    //    let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
+    //    let mut id_to_bb = HashMap::<BlockID, Rc<RefCell<BasicBlock>>>::new();
+    //    let mut basic_block_counter = 0;
+    //    let simple_basic_blocks_vec_from_function =
+    //        BasicBlock::simple_basic_blocks_vec_from_function(f, &mut basic_block_counter);
+    //
+    //    for bb in simple_basic_blocks_vec_from_function {
+    //        let bb_clone = bb.clone();
+    //        hm.insert(
+    //            bb_clone.borrow().instrs.front().unwrap().clone(),
+    //            bb.clone(),
+    //        );
+    //        id_to_bb.insert(bb.borrow().id, bb.clone());
+    //    }
+    //
+    //    (hm, id_to_bb)
+    //    // O(n)
+    //}
     pub fn from_program(p: Program) -> Self {
         let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
 
+        let mut id_to_bb = HashMap::<BlockID, Rc<RefCell<BasicBlock>>>::new();
         let mut basic_block_counter = 0;
         // Iterate to put basic blocks into the graph
         for func in p.functions {
@@ -247,6 +327,7 @@ impl CFG {
                 BasicBlock::simple_basic_blocks_vec_from_function(func, &mut basic_block_counter);
             for bb in simple_basic_blocks_vec_from_function {
                 hm.insert(bb.borrow().instrs.front().unwrap().clone(), bb.clone());
+                id_to_bb.insert(bb.borrow().id, bb.clone());
             }
         }
         // Iterate to connect them
@@ -306,7 +387,7 @@ impl CFG {
             }
         }
 
-        Self { hm }
+        Self { hm, id_to_bb }
     }
 
     pub fn to_program(&self) -> Program {
@@ -332,7 +413,7 @@ impl CFG {
     }
 
     fn insert_instr_func(&self, bb: Rc<RefCell<BasicBlock>>) -> Function {
-        let mut visited = HashSet::<usize>::default();
+        let mut visited = HashSet::<BlockID>::default();
         let mut q = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
         let mut vec_instr = Vec::<InstructionOrLabel>::new();
         q.push_back(bb.clone());
@@ -509,15 +590,54 @@ impl CFG {
 }
 
 impl CFG {
-    pub fn def_variables(&mut self) -> BTreeMap<String, BTreeSet<usize>> {
+    pub fn def_variables(&mut self) -> BTreeMap<String, BTreeSet<BlockID>> {
         // For each blocks,
         //   For each def in each block
         //     Let a particular def be about v
         //     Add def[v].insert(block)
-        for (ilb, bbrc) in self.hm.iter() {
-            todo!();
+        let mut result = BTreeMap::<String, BTreeSet<BlockID>>::new();
+        for (_, bbrc) in self.hm.iter() {
+            for d in bbrc.borrow().get_definitions() {
+                if let InstructionOrLabel::Instruction(i) = d {
+                    result
+                        .entry(i.dest.clone().unwrap())
+                        .or_default()
+                        .insert(bbrc.borrow().id);
+                } else {
+                    continue;
+                };
+            }
         }
-        todo!();
-        BTreeMap::default()
+        result
+    }
+    pub fn place_phi_functions(&mut self) {
+        let defs = self.def_variables();
+
+        let mut dff = DominanceDataFlow::new(self);
+        self.dataflow(&mut dff);
+        let df = dff.infer(self).df.clone();
+
+        for (var, defs_of_var) in defs.iter() {
+            for defining_block in defs_of_var.iter() {
+                for block in df[defining_block].iter() {
+                    let label = self.id_to_bb[defining_block]
+                        .borrow()
+                        .instrs
+                        .front()
+                        .unwrap()
+                        .clone();
+                    if self.id_to_bb[block]
+                        .borrow()
+                        .contains_phi_def(var, label.clone())
+                    {
+                        continue;
+                    } else {
+                        let mut block_mut_b = self.id_to_bb[block].borrow_mut();
+
+                        block_mut_b.insert_phi_def(var, label);
+                    }
+                }
+            }
+        }
     }
 }

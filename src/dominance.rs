@@ -9,7 +9,7 @@ pub struct PessimisticConstProp {}
 pub struct DominanceDataFlow {
     pub domset: BTreeMap<usize, BTreeSet<usize>>,
     pub idom: BTreeMap<usize, usize>,
-    pub domtree: BTreeMap<usize, HashSet<usize>>,
+    pub domtree: BTreeMap<usize, usize>,
     pub df: BTreeMap<usize, HashSet<usize>>,
 }
 
@@ -43,6 +43,11 @@ impl DominanceDataFlow {
 }
 
 impl DominanceDataFlow {
+    pub fn infer(&mut self, cfg: &CFG) -> &mut Self {
+        self.infer_idom_set()
+            .infer_dom_tree()
+            .infer_dominance_frontier(cfg)
+    }
     pub fn infer_idom_set(&mut self) -> &mut Self {
         for (block_id, block_dom_set) in self.domset.iter() {
             for potential_candidate in block_dom_set.iter() {
@@ -83,9 +88,10 @@ impl DominanceDataFlow {
     }
 
     /// Always infer the idom set first, then call this method
+    // dom_tree[a] = b means b immediately dominates a
     pub fn infer_dom_tree(&mut self) -> &mut Self {
         for (dom, idom) in self.idom.iter() {
-            self.domtree.entry(*idom).or_default().insert(*dom);
+            self.domtree.entry(*dom).or_insert(*idom);
         }
         eprintln!("Dom tree: {:?}", self.domtree);
         self
@@ -93,27 +99,34 @@ impl DominanceDataFlow {
 
     /// Infer the first two, then call this
     pub fn infer_dominance_frontier(&mut self, cfg: &CFG) -> &mut Self {
-        // B dominates A if A dominates a predecessor of B, and A doesn't dominate B
-        for (block_id, dom_f) in self.df.iter_mut() {
-            for (_, bb) in cfg.hm.iter() {
-                // Fail second case
-                if block_id == &bb.borrow().id || self.domset[&bb.borrow().id].contains(block_id) {
-                    continue;
-                }
-                for pred in bb.borrow().predecessors.iter() {
-                    if pred.borrow().id == *block_id {
-                        continue;
-                    }
-                    if self.domset[&pred.borrow().id].contains(block_id) {
-                        eprintln!(
-                            "{:?} dominating {:?}, putting {:?} in {:?}",
-                            block_id,
-                            pred.borrow().id,
-                            bb.borrow().id,
-                            block_id
-                        );
-                        dom_f.insert(bb.borrow().id);
-                        break;
+        // B in DF[A] if A dominates a predecessor of B, and A doesn't dominate B
+
+        // For all nodes n in the CFG
+        //  if n has multiple pred
+        //      for each pred of n
+        //          runner = p
+        //          while runner != idom(n) do
+        //          df[runner].insert(n)
+        //          runner = idom(runner)
+        //
+        //
+
+        for (_, node_n) in cfg.hm.iter() {
+            if node_n.borrow().predecessors.len() > 1 {
+                for pred in node_n.borrow().predecessors.iter() {
+                    let mut runner = pred.borrow().id;
+                    while *self
+                        .domtree
+                        .get(&node_n.borrow().id)
+                        .unwrap_or(&(runner + 1))
+                        != runner
+                    {
+                        self.df
+                            .entry(runner)
+                            .or_default()
+                            .insert(node_n.borrow().id);
+
+                        runner = self.idom[&runner];
                     }
                 }
             }

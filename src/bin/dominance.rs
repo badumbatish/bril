@@ -13,6 +13,7 @@ fn main() {
         .infer_idom_set()
         .infer_dom_tree()
         .infer_dominance_frontier(&cfg);
+
     prog.stdout()
     // cfg.print_hm();
 }

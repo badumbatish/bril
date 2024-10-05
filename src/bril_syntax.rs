@@ -66,6 +66,9 @@ pub enum InstructionOrLabel {
     Instruction(Instruction),
 }
 impl InstructionOrLabel {
+    pub fn new_phi(def: String) -> Self {
+        InstructionOrLabel::Instruction(Instruction::new_phi(def))
+    }
     pub fn new_dummy_head(header_name: String) -> Self {
         InstructionOrLabel::Label(Label { label: header_name })
     }
@@ -122,6 +125,18 @@ pub struct Program {
 }
 
 impl Instruction {
+    pub fn new_phi(def: String) -> Self {
+        Self {
+            op: "phi".to_string(),
+            dest: Some(def),
+            args: Default::default(),
+            bril_type: Default::default(),
+            value: Default::default(),
+            funcs: Default::default(),
+            labels: Default::default(),
+            other_fields: Default::default(),
+        }
+    }
     pub fn is_phi(&self) -> bool {
         &self.op == "phi"
     }
