@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use bril::bril_syntax::{Instruction, InstructionOrLabel, Program};
 use bril::cfg::{BasicBlock, DataFlowAnalysis, DataFlowDirection, TransferResult, CFG};
@@ -149,11 +149,11 @@ impl DataFlowAnalysis for LivenessAnalysis {
 
     /// Transform a basic block based on the fact it has acquired, this is only after fix-point
     fn transform(&mut self, bb: &mut BasicBlock) {
-        let mut keep = Vec::<InstructionOrLabel>::new();
+        let mut keep = VecDeque::<InstructionOrLabel>::new();
         for instr_label in bb.instrs.iter_mut() {
             if let InstructionOrLabel::Instruction(instr) = instr_label {
                 if instr.is_nonlinear() {
-                    keep.push(InstructionOrLabel::from(instr.clone()));
+                    keep.push_back(InstructionOrLabel::from(instr.clone()));
                 } else if let Some(LatticeValue::Dead) = self
                     .facts
                     .entry(bb.id)
@@ -161,10 +161,10 @@ impl DataFlowAnalysis for LivenessAnalysis {
                     .get(&instr.dest.clone().unwrap_or_else(|| "|||||||".to_string()))
                 {
                 } else {
-                    keep.push(InstructionOrLabel::from(instr.clone()));
+                    keep.push_back(InstructionOrLabel::from(instr.clone()));
                 }
             } else {
-                keep.push(instr_label.clone());
+                keep.push_back(instr_label.clone());
             }
         }
         bb.instrs = keep;

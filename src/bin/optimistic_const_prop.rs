@@ -32,7 +32,6 @@ impl OptimisticConstProp {
         q: Option<&LatticeValue>,
         p: Option<&LatticeValue>,
     ) -> LatticeValue {
-        
         //eprintln!("{:?} : {:?} : {:?}", meet_value, q, p);
         match (q, p) {
             (Some(a), Some(b)) => match (a, b) {
@@ -277,7 +276,7 @@ impl ConditionalDataFlowAnalysis for OptimisticConstProp {
             }
         }
 
-        let result = match bb.instrs.last() {
+        let result = match bb.instrs.iter().last() {
             Some(instr_lb) => match instr_lb {
                 InstructionOrLabel::Label(_) => match initial == self.facts[&bb.id] {
                     true => ConditionalTransferResult::NoPathTaken,

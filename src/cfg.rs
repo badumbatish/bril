@@ -6,7 +6,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::bril_syntax::{Function, InstructionOrLabel, Program};
+use crate::bril_syntax::{Function, Instruction, InstructionOrLabel, Program};
 
 // Maybe this will be useful in the future but for now a leader is the first instruction in the
 // block
@@ -32,7 +32,7 @@ use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 pub struct BasicBlock {
     pub func: Option<Function>,
     pub id: usize,
-    pub instrs: Vec<InstructionOrLabel>,
+    pub instrs: VecDeque<InstructionOrLabel>,
     pub predecessors: Vec<Rc<RefCell<BasicBlock>>>,
     pub successors: Vec<Rc<RefCell<BasicBlock>>>,
 }
@@ -111,6 +111,19 @@ impl PartialEq for BasicBlock {
 impl Eq for BasicBlock {}
 
 impl BasicBlock {
+    pub fn get_definitions(&self) -> Vec<InstructionOrLabel> {
+        self.instrs
+            .clone()
+            .into_iter()
+            .filter(|x| {
+                if let InstructionOrLabel::Instruction(i) = x {
+                    i.dest.is_some()
+                } else {
+                    false
+                }
+            })
+            .collect()
+    }
     pub fn as_txt_instructions(self) -> String {
         let _result = String::new();
         todo!()
@@ -119,9 +132,9 @@ impl BasicBlock {
         Self {
             func: None,
             id,
-            instrs: Vec::new(),
-            predecessors: Vec::new(),
-            successors: Vec::new(),
+            instrs: Default::default(),
+            predecessors: Default::default(),
+            successors: Default::default(),
         }
     }
 
@@ -138,7 +151,7 @@ impl BasicBlock {
         entry_bb_rcf
             .borrow_mut()
             .instrs
-            .push(InstructionOrLabel::new_dummy_head(entry_header_name));
+            .push_back(InstructionOrLabel::new_dummy_head(entry_header_name));
         *id += 1;
         entry_bb_rcf.borrow_mut().func = Some(f.clone());
         result.push(entry_bb_rcf);
@@ -166,7 +179,7 @@ impl BasicBlock {
             }
 
             let mut bb_mut = bb.borrow_mut();
-            bb_mut.instrs.push(f.instrs[i].clone());
+            bb_mut.instrs.push_back(f.instrs[i].clone());
             i += 1;
             loop {
                 if i >= f.instrs.len() {
@@ -176,7 +189,7 @@ impl BasicBlock {
                     InstructionOrLabel::Instruction(instr) => {
                         bb_mut
                             .instrs
-                            .push(InstructionOrLabel::Instruction(instr.clone()));
+                            .push_back(InstructionOrLabel::Instruction(instr.clone()));
                         if instr.is_jmp() || instr.is_br() {
                             non_linear_before = true;
                             break;
@@ -216,7 +229,7 @@ impl CFG {
         for bb in simple_basic_blocks_vec_from_function {
             let bb_clone = bb.clone();
             hm.insert(
-                bb_clone.borrow().instrs.first().unwrap().clone(),
+                bb_clone.borrow().instrs.front().unwrap().clone(),
                 bb.clone(),
             );
         }
@@ -233,14 +246,14 @@ impl CFG {
             let simple_basic_blocks_vec_from_function =
                 BasicBlock::simple_basic_blocks_vec_from_function(func, &mut basic_block_counter);
             for bb in simple_basic_blocks_vec_from_function {
-                hm.insert(bb.borrow().instrs.first().unwrap().clone(), bb.clone());
+                hm.insert(bb.borrow().instrs.front().unwrap().clone(), bb.clone());
             }
         }
         // Iterate to connect them
         for i in hm.values() {
             let mut bi = i.borrow_mut();
             if !bi.instrs.is_empty() {
-                match bi.instrs.clone().last() {
+                match bi.instrs.clone().into_iter().last() {
                     Some(instr) => match instr {
                         InstructionOrLabel::Label(_) => {
                             //eprintln!("This should not happen in CFG::from_program")
@@ -433,12 +446,12 @@ impl CFG {
         q.push_back(bb.clone());
         result.push_back(bb.clone());
 
-        visited.insert(bb.borrow().instrs.first().unwrap().clone());
+        visited.insert(bb.borrow().instrs.front().unwrap().clone());
         while !q.is_empty() {
             let visit_bb = q.pop_front().unwrap();
             result.push_back(visit_bb.clone());
             for succ in visit_bb.borrow().successors.iter().rev() {
-                let a = succ.borrow().instrs.first().unwrap().clone();
+                let a = succ.borrow().instrs.front().unwrap().clone();
                 if !visited.contains(&a) {
                     q.push_back(succ.clone());
                     visited.insert(a);
@@ -501,6 +514,9 @@ impl CFG {
         //   For each def in each block
         //     Let a particular def be about v
         //     Add def[v].insert(block)
+        for (ilb, bbrc) in self.hm.iter() {
+            todo!();
+        }
         todo!();
         BTreeMap::default()
     }
