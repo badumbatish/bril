@@ -5,7 +5,7 @@ fn main() {
     let prog = Program::stdin();
 
     let mut cfg = CFG::from_program(prog);
-    cfg.place_phi_functions();
+    cfg.place_phi_functions_and_generate_ssa();
     let prog = cfg.to_program();
 
     prog.stdout()

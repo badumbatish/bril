@@ -112,6 +112,111 @@ impl PartialEq for BasicBlock {
 impl Eq for BasicBlock {}
 
 impl BasicBlock {
+    pub fn get_label(&self) -> String {
+        if self.instrs.is_empty() {
+            unreachable!()
+        }
+
+        let a = self.instrs.front().unwrap();
+
+        match a {
+            InstructionOrLabel::Label(l) => l.label.to_string(),
+            _ => {
+                "".to_string()
+            }
+        }
+    }
+    pub fn rename_phi_def(
+        &mut self,
+        mut stack_of: BTreeMap<String, Vec<String>>,
+        dom_tree: &BTreeMap<BlockID, BlockID>,
+        name_counter: &mut BTreeMap<String, usize>,
+        id_to_bb: &HashMap<BlockID, Rc<RefCell<BasicBlock>>>,
+    ) {
+        //  stack[var] = [] # stack of names for each variable
+        //dom_tree[b] = list of children of block b in the dominator tree
+        //              i.e., blocks that are *immediately* dominated by b
+        //def rename(block):
+        //    remember the stack
+        //
+        //    for inst in block:
+        //        inst.args = [stack[arg].top for arg in inst.args]
+        //        fresh = fresh_name(inst.dest)
+        //        stack[inst.dest].push(fresh)
+        //        inst.dest = fresh
+        //    for succ in block.successors:
+        //        for phi in succ.phis:
+        //            v = phi.dest
+        //            update the arg in this phi corresponding to block to stack[v].top
+        //    for child in dom_tree[block]:
+        //        rename(child)
+        //
+        //    restore the stack by popping what we pushed
+        //
+        eprintln!("Rename with SSA from {}", self.id);
+        let dest_later = String::new();
+        for inst in self.instrs.iter_mut() {
+            // Rename arguments of the instruction
+            if let InstructionOrLabel::Instruction(i) = inst {
+                if let Some(args) = &mut i.args {
+                    for arg in args.iter_mut() {
+                        *arg = stack_of
+                            .entry(arg.clone())
+                            .or_insert(vec![arg.clone()])
+                            .last()
+                            .unwrap()
+                            .clone();
+                    }
+                    if let Some(dest) = &mut i.dest {
+                        let fresh =
+                            dest.clone() + &name_counter.get(dest).unwrap_or(&0).to_string();
+                        *name_counter.entry(dest.clone()).or_insert(0) += 1;
+
+                        stack_of
+                            .entry(dest.clone())
+                            .or_default()
+                            .push(fresh.clone());
+
+                        eprintln!("Renaming to {fresh}");
+                        *dest = fresh; // Update i.dest with the fresh name
+                    }
+                }
+            }
+        }
+        for succ in self.successors.iter() {
+            for instr in succ.borrow_mut().instrs.iter_mut() {
+                if let InstructionOrLabel::Instruction(i) = instr {
+                    if i.is_phi() {
+                        let v = &i.dest.clone().unwrap();
+                        if let Some(stack) = stack_of.get(v) {
+                            if let Some(top) = stack.last() {
+                                eprintln!(
+                                    "I am at {} with {:?}",
+                                    self.id,
+                                    self.instrs.front().unwrap()
+                                );
+
+                                let label = self.get_label();
+                                i.rename_phi(v.to_string(), top.to_string(), label);
+                                // Update the phi argument for this block to the top of the stack
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for (a, b) in dom_tree.iter() {
+            if *b == self.id && b != a {
+                id_to_bb[a].borrow_mut().rename_phi_def(
+                    stack_of.clone(),
+                    dom_tree,
+                    name_counter,
+                    id_to_bb,
+                )
+            }
+        }
+    }
     pub fn insert_phi_def(&mut self, def: &String, label: InstructionOrLabel) {
         eprintln!("Insert phi def into {}", self.id);
         for i in self.instrs.iter_mut() {
@@ -590,6 +695,7 @@ impl CFG {
 }
 
 impl CFG {
+    /// A map that maps a variable to all the block that defines it
     pub fn def_variables(&mut self) -> BTreeMap<String, BTreeSet<BlockID>> {
         // For each blocks,
         //   For each def in each block
@@ -610,16 +716,31 @@ impl CFG {
         }
         result
     }
-    pub fn place_phi_functions(&mut self) {
+    pub fn place_phi_functions_and_generate_ssa(&mut self) {
         let defs = self.def_variables();
 
         let mut dff = DominanceDataFlow::new(self);
         self.dataflow(&mut dff);
         let df = dff.infer(self).df.clone();
 
+        self.place_phi_functions(&defs, &df);
+
+        let mut stack_of = BTreeMap::<String, Vec<String>>::new();
+        for (def, _) in defs.iter() {
+            stack_of.entry(def.clone()).or_insert(vec![def.clone()]);
+        }
+        let mut name_counter = BTreeMap::<String, usize>::new();
+        self.rename_phi_defs(stack_of, dff.domtree, &mut name_counter);
+    }
+
+    pub fn place_phi_functions(
+        &mut self,
+        defs: &BTreeMap<String, BTreeSet<BlockID>>,
+        dominance_frontier: &BTreeMap<BlockID, HashSet<BlockID>>,
+    ) {
         for (var, defs_of_var) in defs.iter() {
             for defining_block in defs_of_var.iter() {
-                for block in df[defining_block].iter() {
+                for block in dominance_frontier[defining_block].iter() {
                     let label = self.id_to_bb[defining_block]
                         .borrow()
                         .instrs
@@ -638,6 +759,25 @@ impl CFG {
                     }
                 }
             }
+        }
+    }
+
+    pub fn rename_phi_defs(
+        &mut self,
+        stack_of: BTreeMap<String, Vec<String>>,
+        dom_tree: BTreeMap<BlockID, BlockID>,
+        name_counter: &mut BTreeMap<String, usize>,
+    ) {
+        for (_, bb) in self.hm.iter() {
+            if bb.borrow().func.is_none() {
+                continue;
+            }
+            bb.borrow_mut().rename_phi_def(
+                stack_of.clone(),
+                &dom_tree,
+                name_counter,
+                &self.id_to_bb,
+            )
         }
     }
 }

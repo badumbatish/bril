@@ -137,6 +137,21 @@ impl Instruction {
             other_fields: Default::default(),
         }
     }
+
+    pub fn rename_phi(&mut self, from: String, to: String, block_label: String) {
+        assert!(self.is_phi());
+
+        if let Some(ref mut args) = self.args {
+            if let Some(labels) = &self.labels {
+                for (arg, label) in args.iter_mut().zip(labels.iter()) {
+                    if *arg == from && *label == block_label {
+                        *arg = to;
+                        return;
+                    }
+                }
+            }
+        }
+    }
     pub fn is_phi(&self) -> bool {
         &self.op == "phi"
     }
