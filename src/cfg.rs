@@ -121,9 +121,7 @@ impl BasicBlock {
 
         match a {
             InstructionOrLabel::Label(l) => l.label.to_string(),
-            _ => {
-                "".to_string()
-            }
+            _ => "".to_string(),
         }
     }
     pub fn rename_phi_def(
@@ -436,7 +434,7 @@ impl CFG {
             }
         }
         // Iterate to connect them
-        for i in hm.values() {
+        for i in hm.clone().into_values() {
             let mut bi = i.borrow_mut();
             if !bi.instrs.is_empty() {
                 match bi.instrs.clone().into_iter().last() {
@@ -446,41 +444,54 @@ impl CFG {
                         }
                         InstructionOrLabel::Instruction(ins) => {
                             if ins.is_br() {
-                                bi.successors.push(
-                                    hm[&InstructionOrLabel::from(
-                                        ins.labels.clone().unwrap()[1].clone(),
-                                    )]
-                                        .clone(),
-                                );
-                                bi.successors.push(
-                                    hm[&InstructionOrLabel::from(
-                                        ins.labels.clone().unwrap()[0].clone(),
-                                    )]
-                                        .clone(),
-                                );
-
-                                hm[&InstructionOrLabel::from(
+                                let first_branch_label = &InstructionOrLabel::from(
                                     ins.labels.clone().unwrap()[1].clone(),
-                                )]
-                                    .borrow_mut()
-                                    .predecessors
-                                    .push(i.clone());
-                                hm[&InstructionOrLabel::from(
-                                    ins.labels.clone().unwrap()[0].clone(),
-                                )]
-                                    .borrow_mut()
-                                    .predecessors
-                                    .push(i.clone());
-                            } else if ins.is_jmp() {
-                                bi.successors.push(
-                                    hm[&InstructionOrLabel::from(
-                                        ins.labels.clone().unwrap()[0].clone(),
-                                    )]
-                                        .clone(),
                                 );
-                                hm[&InstructionOrLabel::from(
+                                let second_branch_label = &InstructionOrLabel::from(
                                     ins.labels.clone().unwrap()[0].clone(),
-                                )]
+                                );
+                                bi.successors.push(hm[first_branch_label].clone());
+                                hm[first_branch_label]
+                                    .borrow_mut()
+                                    .predecessors
+                                    .push(i.clone());
+
+                                bi.successors.push(hm[second_branch_label].clone());
+                                hm[second_branch_label]
+                                    .borrow_mut()
+                                    .predecessors
+                                    .push(i.clone());
+                                //bi.successors.push(
+                                //    hm[&InstructionOrLabel::from(
+                                //        ins.labels.clone().unwrap()[1].clone(),
+                                //    )]
+                                //        .clone(),
+                                //);
+                                //bi.successors.push(
+                                //    hm[&InstructionOrLabel::from(
+                                //        ins.labels.clone().unwrap()[0].clone(),
+                                //    )]
+                                //        .clone(),
+                                //);
+                                //
+                                //hm[&InstructionOrLabel::from(
+                                //    ins.labels.clone().unwrap()[1].clone(),
+                                //)]
+                                //    .borrow_mut()
+                                //    .predecessors
+                                //    .push(i.clone());
+                                //hm[&InstructionOrLabel::from(
+                                //    ins.labels.clone().unwrap()[0].clone(),
+                                //)]
+                                //    .borrow_mut()
+                                //    .predecessors
+                                //    .push(i.clone());
+                            } else if ins.is_jmp() {
+                                let first_branch_label = &InstructionOrLabel::from(
+                                    ins.labels.clone().unwrap()[0].clone(),
+                                );
+                                bi.successors.push(hm[first_branch_label].clone());
+                                hm[first_branch_label]
                                     .borrow_mut()
                                     .predecessors
                                     .push(i.clone());
@@ -647,6 +658,14 @@ impl CFG {
 
         result
     }
+    fn parent_block_connect_to_child(
+        parent: Rc<RefCell<BasicBlock>>,
+        label: &InstructionOrLabel,
+        hm: &mut HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>>,
+    ) {
+        parent.borrow_mut().successors.push(hm[label].clone());
+        hm[label].borrow_mut().predecessors.push(parent.clone());
+    }
     //pub fn to_dot_string(&self) -> String {
     //    let mut graph_as_string = String::from("digraph {\n");
     //
@@ -694,6 +713,7 @@ impl CFG {
     //
 }
 
+/// INFO: This impl block is denoted to be about SSA
 impl CFG {
     /// A map that maps a variable to all the block that defines it
     pub fn def_variables(&mut self) -> BTreeMap<String, BTreeSet<BlockID>> {

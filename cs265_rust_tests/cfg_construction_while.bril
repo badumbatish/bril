@@ -1,5 +1,5 @@
 # RUN: cat %s | bril2json | ../target/debug/cfg_construction 
-# RUN: cat %s | bril2json | ../target/debug/basic_block_count | grep "Block count : 3"
+# RUN: cat %s | bril2json | ../target/debug/basic_block_count | grep "Block count : 4"
 @main(a: int) {
 .while.cond:
   zero: int = const 0;

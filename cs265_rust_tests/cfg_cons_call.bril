@@ -1,6 +1,6 @@
 
 # RUN: cat %s | bril2json | ../target/debug/cfg_construction 
-# RUN: cat %s | bril2json | ../target/debug/basic_block_count | grep "Block count : 2"
+# RUN: cat %s | bril2json | ../target/debug/basic_block_count | grep "Block count : 4"
 
 @add5(n: int): int {
   five: int = const 5;
