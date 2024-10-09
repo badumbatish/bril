@@ -151,8 +151,7 @@ impl BasicBlock {
         //
         //    restore the stack by popping what we pushed
         //
-        eprintln!("Rename with SSA from {}", self.id);
-        let dest_later = String::new();
+        //eprintln!("Rename with SSA from {}", self.id);
         for inst in self.instrs.iter_mut() {
             // Rename arguments of the instruction
             if let InstructionOrLabel::Instruction(i) = inst {
@@ -175,7 +174,7 @@ impl BasicBlock {
                             .or_default()
                             .push(fresh.clone());
 
-                        eprintln!("Renaming to {fresh}");
+                        //eprintln!("Renaming to {fresh}");
                         *dest = fresh; // Update i.dest with the fresh name
                     }
                 }
@@ -188,11 +187,11 @@ impl BasicBlock {
                         let v = &i.dest.clone().unwrap();
                         if let Some(stack) = stack_of.get(v) {
                             if let Some(top) = stack.last() {
-                                eprintln!(
-                                    "I am at {} with {:?}",
-                                    self.id,
-                                    self.instrs.front().unwrap()
-                                );
+                                //eprintln!(
+                                //    "I am at {} with {:?}",
+                                //    self.id,
+                                //    self.instrs.front().unwrap()
+                                //);
 
                                 let label = self.get_label();
                                 i.rename_phi(v.to_string(), top.to_string(), label);
@@ -216,7 +215,7 @@ impl BasicBlock {
         }
     }
     pub fn insert_phi_def(&mut self, def: &String, label: InstructionOrLabel) {
-        eprintln!("Insert phi def into {}", self.id);
+        //eprintln!("Insert phi def into {}", self.id);
         for i in self.instrs.iter_mut() {
             match i {
                 InstructionOrLabel::Instruction(p) => {
@@ -658,14 +657,6 @@ impl CFG {
 
         result
     }
-    fn parent_block_connect_to_child(
-        parent: Rc<RefCell<BasicBlock>>,
-        label: &InstructionOrLabel,
-        hm: &mut HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>>,
-    ) {
-        parent.borrow_mut().successors.push(hm[label].clone());
-        hm[label].borrow_mut().predecessors.push(parent.clone());
-    }
     //pub fn to_dot_string(&self) -> String {
     //    let mut graph_as_string = String::from("digraph {\n");
     //
@@ -743,61 +734,53 @@ impl CFG {
         self.dataflow(&mut dff);
         let df = dff.infer(self).df.clone();
 
-        self.place_phi_functions(&defs, &df);
+        // INFO: A function to place phi functions down
+        let place_phi_functions = || {
+            for (var, defs_of_var) in defs.iter() {
+                for defining_block in defs_of_var.iter() {
+                    for block in df[defining_block].iter() {
+                        let label = self.id_to_bb[defining_block]
+                            .borrow()
+                            .instrs
+                            .front()
+                            .unwrap()
+                            .clone();
+                        if self.id_to_bb[block]
+                            .borrow()
+                            .contains_phi_def(var, label.clone())
+                        {
+                            continue;
+                        } else {
+                            let mut block_mut_b = self.id_to_bb[block].borrow_mut();
+
+                            block_mut_b.insert_phi_def(var, label);
+                        }
+                    }
+                }
+            }
+        };
+        place_phi_functions();
 
         let mut stack_of = BTreeMap::<String, Vec<String>>::new();
         for (def, _) in defs.iter() {
             stack_of.entry(def.clone()).or_insert(vec![def.clone()]);
         }
         let mut name_counter = BTreeMap::<String, usize>::new();
-        self.rename_phi_defs(stack_of, dff.domtree, &mut name_counter);
-    }
 
-    pub fn place_phi_functions(
-        &mut self,
-        defs: &BTreeMap<String, BTreeSet<BlockID>>,
-        dominance_frontier: &BTreeMap<BlockID, HashSet<BlockID>>,
-    ) {
-        for (var, defs_of_var) in defs.iter() {
-            for defining_block in defs_of_var.iter() {
-                for block in dominance_frontier[defining_block].iter() {
-                    let label = self.id_to_bb[defining_block]
-                        .borrow()
-                        .instrs
-                        .front()
-                        .unwrap()
-                        .clone();
-                    if self.id_to_bb[block]
-                        .borrow()
-                        .contains_phi_def(var, label.clone())
-                    {
-                        continue;
-                    } else {
-                        let mut block_mut_b = self.id_to_bb[block].borrow_mut();
-
-                        block_mut_b.insert_phi_def(var, label);
-                    }
+        // INFO: A function to rename operands in phi functions
+        let mut rename_phi_defs = |stack_of: BTreeMap<String, Vec<String>>| {
+            for (_, bb) in self.hm.iter() {
+                if bb.borrow().func.is_none() {
+                    continue;
                 }
+                bb.borrow_mut().rename_phi_def(
+                    stack_of.clone(),
+                    &dff.domtree,
+                    &mut name_counter,
+                    &self.id_to_bb,
+                )
             }
-        }
-    }
-
-    pub fn rename_phi_defs(
-        &mut self,
-        stack_of: BTreeMap<String, Vec<String>>,
-        dom_tree: BTreeMap<BlockID, BlockID>,
-        name_counter: &mut BTreeMap<String, usize>,
-    ) {
-        for (_, bb) in self.hm.iter() {
-            if bb.borrow().func.is_none() {
-                continue;
-            }
-            bb.borrow_mut().rename_phi_def(
-                stack_of.clone(),
-                &dom_tree,
-                name_counter,
-                &self.id_to_bb,
-            )
-        }
+        };
+        rename_phi_defs(stack_of);
     }
 }
