@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
+use bril::basic_block::BasicBlock;
 use bril::bril_syntax::{BrilType, Instruction, InstructionOrLabel, Program};
-use bril::cfg::{BasicBlock, ConditionalDataFlowAnalysis, ConditionalTransferResult, CFG};
+use bril::cfg::{ConditionalDataFlowAnalysis, ConditionalTransferResult, CFG};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
     Dominator,

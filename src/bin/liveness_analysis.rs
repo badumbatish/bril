@@ -1,7 +1,8 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, LinkedList};
 
+use bril::basic_block::BasicBlock;
 use bril::bril_syntax::{Instruction, InstructionOrLabel, Program};
-use bril::cfg::{BasicBlock, DataFlowAnalysis, DataFlowDirection, TransferResult, CFG};
+use bril::cfg::{DataFlowAnalysis, DataFlowDirection, TransferResult, CFG};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
     Alisa,
@@ -149,7 +150,7 @@ impl DataFlowAnalysis for LivenessAnalysis {
 
     /// Transform a basic block based on the fact it has acquired, this is only after fix-point
     fn transform(&mut self, bb: &mut BasicBlock) {
-        let mut keep = VecDeque::<InstructionOrLabel>::new();
+        let mut keep = LinkedList::<InstructionOrLabel>::new();
         for instr_label in bb.instrs.iter_mut() {
             if let InstructionOrLabel::Instruction(instr) = instr_label {
                 if instr.is_nonlinear() {

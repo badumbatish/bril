@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use crate::cfg::*;
+use crate::{basic_block::BasicBlock, cfg::*};
 pub struct DominatorTree {}
 impl DominatorTree {
     //pub fn new(cfg: cfg::CFG) {}
