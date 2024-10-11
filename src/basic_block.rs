@@ -1,11 +1,13 @@
+use crate::{
+    aliases::{BlockID, DomTree, IdToBbMap, SSANameStack},
+    bril_syntax::{Function, InstructionOrLabel},
+};
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashMap, LinkedList},
+    collections::{BTreeMap, LinkedList},
     hash::{Hash, Hasher},
     rc::Rc,
 };
-pub type BlockID = usize;
-use crate::bril_syntax::{Function, InstructionOrLabel};
 
 // Maybe this will be useful in the future but for now a leader is the first instruction in the
 // block
@@ -76,12 +78,16 @@ impl BasicBlock {
     pub fn push_front(&mut self, ilb: &InstructionOrLabel) {
         todo!();
     }
+    pub fn push_before_header(&mut self, lib: &InstructionOrLabel) {}
     pub fn push_back(&mut self, ilb: &InstructionOrLabel) {
         todo!();
     }
 
-    pub fn insert_at(&mut self, ilb: &InstructionOrLabel) {
-        todo!();
+    pub fn insert_at(&mut self, position: usize, ilb: &InstructionOrLabel) {
+        let mut tail = self.instrs.split_off(position);
+
+        self.instrs.push_back(ilb.clone()); // Manually walk the iterator to the desired position
+        self.instrs.append(&mut tail);
     }
     pub fn get_label(&self) -> String {
         if self.instrs.is_empty() {
@@ -97,10 +103,10 @@ impl BasicBlock {
     }
     pub fn rename_phi_def(
         &mut self,
-        mut stack_of: BTreeMap<String, Vec<String>>,
-        dom_tree: &BTreeMap<BlockID, BlockID>,
+        mut stack_of: SSANameStack,
+        dom_tree: &DomTree,
         name_counter: &mut BTreeMap<String, usize>,
-        id_to_bb: &HashMap<BlockID, Rc<RefCell<BasicBlock>>>,
+        id_to_bb: &IdToBbMap,
     ) {
         //  stack[var] = [] # stack of names for each variable
         //dom_tree[b] = list of children of block b in the dominator tree
@@ -206,12 +212,7 @@ impl BasicBlock {
             }
         }
 
-        let mut tail = self.instrs.split_off(1);
-
-        self.instrs
-            .push_back(InstructionOrLabel::new_phi(def.clone())); // Manually walk the iterator to the desired position
-        self.instrs.append(&mut tail);
-        // Insert the new element at the current iterator position
+        self.insert_at(1, &InstructionOrLabel::new_phi(def.clone())); // Insert the new element at the current iterator position
 
         for i in self.instrs.iter_mut() {
             match i {

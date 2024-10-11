@@ -1,12 +1,11 @@
+use crate::aliases::{BlockID, IdToBbMap};
 use crate::basic_block::BasicBlock;
-use crate::basic_block::BlockID;
 use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 use crate::dominance::DominanceDataFlow;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     fmt::Debug,
-    hash::Hasher,
     rc::Rc,
 };
 
@@ -50,7 +49,7 @@ pub trait ConditionalDataFlowAnalysis {
 #[derive(Debug)]
 pub struct CFG {
     pub hm: HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>>,
-    pub id_to_bb: HashMap<BlockID, Rc<RefCell<BasicBlock>>>,
+    pub id_to_bb: IdToBbMap,
 }
 // main:
 // @main
@@ -280,10 +279,13 @@ impl CFG {
                     d.meet(&mut visit_bb.borrow_mut());
 
                     if d.transfer(&mut visit_bb.borrow_mut()) == TransferResult::Changed {
-                        if d.get_dataflow_direction() == DataFlowDirection::Forward {
-                            q.extend(visit_bb.borrow_mut().successors.clone());
-                        } else if d.get_dataflow_direction() == DataFlowDirection::Backward {
-                            q.extend(visit_bb.borrow_mut().predecessors.clone());
+                        match d.get_dataflow_direction() {
+                            DataFlowDirection::Forward => {
+                                q.extend(visit_bb.borrow_mut().successors.clone())
+                            }
+                            DataFlowDirection::Backward => {
+                                q.extend(visit_bb.borrow_mut().predecessors.clone())
+                            }
                         }
                     }
                 }
