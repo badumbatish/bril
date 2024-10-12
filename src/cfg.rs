@@ -11,6 +11,7 @@ use std::{
 #[derive(Debug)]
 pub struct CFG {
     pub hm: HashMap<InstructionOrLabel, BbPtr>,
+    pub basic_block_counter: BlockID,
     pub id_to_bb: IdToBbMap,
 }
 // main:
@@ -45,7 +46,8 @@ impl CFG {
         let mut hm = HashMap::<InstructionOrLabel, BbPtr>::new();
 
         let mut id_to_bb = HashMap::<BlockID, BbPtr>::new();
-        let mut basic_block_counter = 0;
+
+        let mut basic_block_counter: BlockID = 0;
         // Iterate to put basic blocks into the graph
         for func in p.functions {
             let simple_basic_blocks_vec_from_function =
@@ -83,31 +85,6 @@ impl CFG {
                                     .borrow_mut()
                                     .predecessors
                                     .push(i.clone());
-                                //bi.successors.push(
-                                //    hm[&InstructionOrLabel::from(
-                                //        ins.labels.clone().unwrap()[1].clone(),
-                                //    )]
-                                //        .clone(),
-                                //);
-                                //bi.successors.push(
-                                //    hm[&InstructionOrLabel::from(
-                                //        ins.labels.clone().unwrap()[0].clone(),
-                                //    )]
-                                //        .clone(),
-                                //);
-                                //
-                                //hm[&InstructionOrLabel::from(
-                                //    ins.labels.clone().unwrap()[1].clone(),
-                                //)]
-                                //    .borrow_mut()
-                                //    .predecessors
-                                //    .push(i.clone());
-                                //hm[&InstructionOrLabel::from(
-                                //    ins.labels.clone().unwrap()[0].clone(),
-                                //)]
-                                //    .borrow_mut()
-                                //    .predecessors
-                                //    .push(i.clone());
                             } else if ins.is_jmp() {
                                 let first_branch_label = &InstructionOrLabel::from(
                                     ins.labels.clone().unwrap()[0].clone(),
@@ -125,7 +102,11 @@ impl CFG {
             }
         }
 
-        Self { hm, id_to_bb }
+        Self {
+            hm,
+            basic_block_counter,
+            id_to_bb,
+        }
     }
 
     pub fn to_program(&self) -> Program {
@@ -328,7 +309,23 @@ pub struct Loops {
 
 impl Loops {
     fn new(cfg: &mut CFG) {
-        let mut dominance = DominanceDataFlow::new(cfg);
-        dominance.infer(cfg);
+        let dominance = DominanceDataFlow::new(cfg);
+
+        for (_, bb_ptr) in cfg.hm.iter() {
+            let block_id = bb_ptr.borrow().id;
+            for pred in bb_ptr.borrow().predecessors.iter() {
+                if dominance.dom(pred.borrow().id, block_id) {
+                    eprintln!(
+                        "I see a loop from block {} to block {}",
+                        pred.borrow().id,
+                        block_id
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn variable_in_a_loop(&self, variable_name: String) -> bool {
+        todo!()
     }
 }

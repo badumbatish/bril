@@ -10,6 +10,7 @@ impl DominatorTree {
     //pub fn new(cfg: cfg::CFG) {}
 }
 pub struct PessimisticConstProp {}
+
 pub struct DominanceDataFlow {
     pub domset: BTreeMap<usize, BTreeSet<usize>>,
     pub idom: BTreeMap<usize, usize>,
@@ -41,18 +42,29 @@ impl DominanceDataFlow {
             result.domtree.entry(idb).or_default();
             result.df.entry(idb).or_default();
         }
+        cfg.dataflow(&mut result);
 
+        result.infer(cfg);
         result
     }
 
-    pub fn dom(from: usize, to: usize) -> bool {
-        todo!()
+    pub fn dom(&self, dominator: usize, dominated: usize) -> bool {
+        match self.domset.get(&dominated) {
+            Some(set_of_dominator) => set_of_dominator.contains(&dominator),
+            None => false,
+        }
     }
-    pub fn idom(from: usize, to: usize) -> bool {
-        todo!()
+    pub fn idom(&self, dominator: usize, dominated: usize) -> bool {
+        match self.idom.get(&dominated) {
+            Some(supposed_dominator) => supposed_dominator == &dominator,
+            None => false,
+        }
     }
-    pub fn dom_frontier(from: usize, to: usize) -> bool {
-        todo!()
+    pub fn dom_frontier(&self, frontier_of: usize, in_the_frontier: usize) -> bool {
+        match self.df.get(&frontier_of) {
+            Some(frontier) => frontier.contains(&in_the_frontier),
+            None => false,
+        }
     }
 }
 
@@ -62,7 +74,7 @@ impl DominanceDataFlow {
             .infer_dom_tree()
             .infer_dominance_frontier(cfg)
     }
-    pub fn infer_idom_set(&mut self) -> &mut Self {
+    fn infer_idom_set(&mut self) -> &mut Self {
         for (block_id, block_dom_set) in self.domset.iter() {
             for potential_candidate in block_dom_set.iter() {
                 let mut good_candidate = true;
@@ -71,12 +83,7 @@ impl DominanceDataFlow {
                         if other_candidate == potential_candidate || other_candidate == block_id {
                             continue;
                         }
-                        if self
-                            .domset
-                            .get(other_candidate)
-                            .unwrap()
-                            .contains(potential_candidate)
-                        {
+                        if self.dom(*potential_candidate, *other_candidate) {
                             //eprintln!(
                             //    "Other: {:?}, potential: {:?}. Disqualified",
                             //    other_candidate, potential_candidate
@@ -103,7 +110,7 @@ impl DominanceDataFlow {
 
     /// Always infer the idom set first, then call this method
     // dom_tree[a] = b means b immediately dominates a
-    pub fn infer_dom_tree(&mut self) -> &mut Self {
+    fn infer_dom_tree(&mut self) -> &mut Self {
         for (dom, idom) in self.idom.iter() {
             self.domtree.entry(*dom).or_insert(*idom);
         }
@@ -112,7 +119,7 @@ impl DominanceDataFlow {
     }
 
     /// Infer the first two, then call this
-    pub fn infer_dominance_frontier(&mut self, cfg: &CFG) -> &mut Self {
+    fn infer_dominance_frontier(&mut self, cfg: &CFG) -> &mut Self {
         // B in DF[A] if A dominates a predecessor of B, and A doesn't dominate B
 
         // For all nodes n in the CFG

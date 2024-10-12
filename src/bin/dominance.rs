@@ -4,15 +4,9 @@ fn main() {
     let prog = Program::stdin();
 
     let cfg = CFG::from_program(prog);
-    let mut dominance = DominanceDataFlow::new(&cfg);
-    cfg.dataflow(&mut dominance);
+    let _dominance = DominanceDataFlow::new(&cfg);
 
     let prog = cfg.to_program();
-
-    dominance
-        .infer_idom_set()
-        .infer_dom_tree()
-        .infer_dominance_frontier(&cfg);
 
     prog.stdout()
     // cfg.print_hm();
