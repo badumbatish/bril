@@ -2,7 +2,8 @@ use std::collections::{HashMap, LinkedList};
 
 use bril::basic_block::BasicBlock;
 use bril::bril_syntax::{Instruction, InstructionOrLabel, Program};
-use bril::cfg::{DataFlowAnalysis, DataFlowDirection, TransferResult, CFG};
+use bril::cfg::CFG;
+use bril::data_flow::{DataFlowAnalysis, DataFlowDirection, DataFlowOrder, TransferResult};
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
 pub enum LatticeValue {
     Alisa,
@@ -171,12 +172,12 @@ impl DataFlowAnalysis for LivenessAnalysis {
         bb.instrs = keep;
     }
 
-    fn get_dataflow_direction(&self) -> bril::cfg::DataFlowDirection {
+    fn get_dataflow_direction(&self) -> DataFlowDirection {
         DataFlowDirection::Backward
     }
 
-    fn get_dataflow_order(&self) -> bril::cfg::DataFlowOrder {
-        bril::cfg::DataFlowOrder::BFS
+    fn get_dataflow_order(&self) -> DataFlowOrder {
+        DataFlowOrder::BFS
     }
 }
 fn main() {
