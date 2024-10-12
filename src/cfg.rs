@@ -1,17 +1,16 @@
-use crate::aliases::{BlockID, IdToBbMap};
+use crate::aliases::{BbPtr, BlockID, IdToBbMap};
 use crate::basic_block::BasicBlock;
 use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 use crate::dominance::DominanceDataFlow;
+use std::collections::LinkedList;
 use std::{
-    cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     fmt::Debug,
-    rc::Rc,
 };
 
 #[derive(Debug)]
 pub struct CFG {
-    pub hm: HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>>,
+    pub hm: HashMap<InstructionOrLabel, BbPtr>,
     pub id_to_bb: IdToBbMap,
 }
 // main:
@@ -20,12 +19,12 @@ impl CFG {
     //pub fn components_from_function(
     //    f: Function,
     //) -> (
-    //    HashMap<InstructionOrLabel, Rc<RefCell<BasicBlock>>>,
-    //    HashMap<BlockID, Rc<RefCell<BasicBlock>>>,
+    //    HashMap<InstructionOrLabel, BbPtr>,
+    //    HashMap<BlockID, BbPtr>,
     //) {
     //    // O(n)
-    //    let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
-    //    let mut id_to_bb = HashMap::<BlockID, Rc<RefCell<BasicBlock>>>::new();
+    //    let mut hm = HashMap::<InstructionOrLabel, BbPtr>::new();
+    //    let mut id_to_bb = HashMap::<BlockID, BbPtr>::new();
     //    let mut basic_block_counter = 0;
     //    let simple_basic_blocks_vec_from_function =
     //        BasicBlock::simple_basic_blocks_vec_from_function(f, &mut basic_block_counter);
@@ -43,9 +42,9 @@ impl CFG {
     //    // O(n)
     //}
     pub fn from_program(p: Program) -> Self {
-        let mut hm = HashMap::<InstructionOrLabel, Rc<RefCell<BasicBlock>>>::new();
+        let mut hm = HashMap::<InstructionOrLabel, BbPtr>::new();
 
-        let mut id_to_bb = HashMap::<BlockID, Rc<RefCell<BasicBlock>>>::new();
+        let mut id_to_bb = HashMap::<BlockID, BbPtr>::new();
         let mut basic_block_counter = 0;
         // Iterate to put basic blocks into the graph
         for func in p.functions {
@@ -137,8 +136,7 @@ impl CFG {
 
         // The function is here just because we want to maintain the initial order of function in
         // textual IR
-        let mut sorted_by_func_id: Vec<Rc<RefCell<BasicBlock>>> =
-            self.hm.values().cloned().collect();
+        let mut sorted_by_func_id: Vec<BbPtr> = self.hm.values().cloned().collect();
 
         // Sort the vector by the 'id' field
         sorted_by_func_id.sort_by_key(|e| e.borrow().id);
@@ -151,9 +149,9 @@ impl CFG {
         p
     }
 
-    fn insert_instr_func(&self, bb: Rc<RefCell<BasicBlock>>) -> Function {
+    fn insert_instr_func(&self, bb: BbPtr) -> Function {
         let mut visited = HashSet::<BlockID>::default();
-        let mut q = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
+        let mut q = VecDeque::<BbPtr>::default();
         let mut vec_instr = Vec::<InstructionOrLabel>::new();
         q.push_back(bb.clone());
         visited.insert(bb.borrow().id);
@@ -213,7 +211,7 @@ impl CFG {
     //fn make_node_name(id: u32) -> String {
     //    "\tnode".to_owned() + &id.to_string()
     //}
-    //fn make_info_from_block(bb: Rc<RefCell<BasicBlock>>) -> String {
+    //fn make_info_from_block(bb: BbPtr) -> String {
     //    let mut result = String::new();
     //
     //    match &bb.borrow().leader {
@@ -314,5 +312,23 @@ impl CFG {
             }
         };
         rename_phi_defs(stack_of);
+    }
+}
+
+pub struct Loop {
+    pub preheader: BbPtr,
+    pub header: BbPtr,
+    pub latch: BbPtr,
+    pub loop_nodes: LinkedList<BbPtr>,
+    pub exit: BbPtr,
+}
+pub struct Loops {
+    pub loops: Vec<Loop>,
+}
+
+impl Loops {
+    fn new(cfg: &mut CFG) {
+        let mut dominance = DominanceDataFlow::new(cfg);
+        dominance.infer(cfg);
     }
 }

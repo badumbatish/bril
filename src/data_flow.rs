@@ -1,10 +1,9 @@
-use crate::aliases::{BlockID, IdToBbMap};
 use crate::basic_block::BasicBlock;
-use crate::bril_syntax::{Function, InstructionOrLabel, Program};
+use crate::bril_syntax::InstructionOrLabel;
 use crate::cfg::CFG;
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{HashSet, VecDeque},
     fmt::Debug,
     rc::Rc,
 };

@@ -44,6 +44,16 @@ impl DominanceDataFlow {
 
         result
     }
+
+    pub fn dom(from: usize, to: usize) -> bool {
+        todo!()
+    }
+    pub fn idom(from: usize, to: usize) -> bool {
+        todo!()
+    }
+    pub fn dom_frontier(from: usize, to: usize) -> bool {
+        todo!()
+    }
 }
 
 impl DominanceDataFlow {
