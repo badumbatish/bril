@@ -294,6 +294,10 @@ impl CFG {
         };
         rename_phi_defs(stack_of);
     }
+
+    pub fn analyze_loop(&self) {
+        Loops::new(self);
+    }
 }
 
 pub struct Loop {
@@ -308,24 +312,34 @@ pub struct Loops {
 }
 
 impl Loops {
-    fn new(cfg: &mut CFG) {
+    fn new(cfg: &CFG) {
         let dominance = DominanceDataFlow::new(cfg);
 
-        for (_, bb_ptr) in cfg.hm.iter() {
-            let block_id = bb_ptr.borrow().id;
-            for pred in bb_ptr.borrow().predecessors.iter() {
-                if dominance.dom(pred.borrow().id, block_id) {
-                    eprintln!(
-                        "I see a loop from block {} to block {}",
-                        pred.borrow().id,
-                        block_id
-                    );
+        for (dominated, dominator_set) in &dominance.domset {
+            match cfg.id_to_bb.get(dominated) {
+                Some(bbptr) => {
+                    for succ in bbptr.borrow().successors.iter() {
+                        let succ_id = &succ.borrow().id;
+                        if dominator_set.contains(succ_id) {
+                            eprintln!("I see a loop from block {} to block {}", succ_id, dominated)
+                        }
+                    }
                 }
+                _ => todo!(),
             }
         }
+        //for (_, bb_ptr) in cfg.hm.iter() {
+        //    let block_id = bb_ptr.borrow().id;
+        //    for pred in bb_ptr.borrow().predecessors.iter() {
+        //        if dominance.dom(pred.borrow().id, block_id) {
+        //            eprintln!(
+        //            );
+        //        }
+        //    }
+        //}
     }
 
-    pub fn variable_in_a_loop(&self, variable_name: String) -> bool {
+    pub fn variable_in_a_loop(&self, _variable_name: String) -> bool {
         todo!()
     }
 }

@@ -6,6 +6,7 @@ fn main() {
 
     let cfg = CFG::from_program(prog);
 
+    cfg.analyze_loop();
     let prog = cfg.to_program();
 
     prog.stdout()
