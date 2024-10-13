@@ -146,8 +146,11 @@ impl DominanceDataFlow {
                             .entry(runner)
                             .or_default()
                             .insert(node_n.borrow().id);
-
-                        runner = self.idom[&runner];
+                        if self.idom.contains_key(&runner) {
+                            runner = self.idom[&runner];
+                        } else {
+                            break;
+                        }
                     }
                 }
             }

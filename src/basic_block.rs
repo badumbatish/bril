@@ -1,6 +1,6 @@
 use crate::{
     aliases::{BlockID, DomTree, IdToBbMap, SSANameStack},
-    bril_syntax::{Function, InstructionOrLabel},
+    bril_syntax::{Function, InstructionOrLabel, Label},
 };
 use std::{
     cell::RefCell,
@@ -80,7 +80,7 @@ impl BasicBlock {
     }
     pub fn push_before_header(&mut self, lib: &InstructionOrLabel) {}
     pub fn push_back(&mut self, ilb: &InstructionOrLabel) {
-        todo!();
+        self.instrs.push_back(ilb.clone());
     }
 
     pub fn insert_at(&mut self, position: usize, ilb: &InstructionOrLabel) {
@@ -286,6 +286,14 @@ impl BasicBlock {
             predecessors: Default::default(),
             successors: Default::default(),
         }
+    }
+    pub fn default_with_label(id: BlockID, label: &String) -> BasicBlock {
+        let mut result = Self::default(id);
+
+        result.push_back(&InstructionOrLabel::Label(Label {
+            label: label.clone(),
+        }));
+        result
     }
 
     pub fn simple_basic_blocks_vec_from_function(

@@ -141,7 +141,7 @@ impl CFG {
         while !q.is_empty() {
             let visit_bb = q.pop_front().unwrap();
 
-            for succ in visit_bb.borrow().successors.iter().rev() {
+            for succ in visit_bb.borrow().successors.iter() {
                 let a = succ.borrow().id;
                 if !visited.contains(&a) {
                     q.push_back(succ.clone());
@@ -150,7 +150,7 @@ impl CFG {
                 }
             }
         }
-        v.sort_by_key(|bb| bb.borrow().id);
+        // v.sort_by_key(|bb| bb.borrow().id);
 
         for bb in v {
             vec_instr.extend(bb.borrow().instrs.clone());
@@ -295,7 +295,7 @@ impl CFG {
         rename_phi_defs(stack_of);
     }
 
-    pub fn analyze_loop(&self) {
+    pub fn analyze_loop(&mut self) {
         Loops::new(self);
     }
 }
@@ -305,27 +305,152 @@ pub struct Loop {
     pub header: BbPtr,
     pub latch: BbPtr,
     pub loop_nodes: LinkedList<BbPtr>,
-    pub exit: BbPtr,
+    pub exit: Option<BbPtr>,
+}
+
+pub enum PreHeaderCreate {
+    Create,
+    DontCreate,
+}
+impl Loop {
+    pub fn new_with_header_and_latch(
+        cfg: &mut CFG,
+        header_id: &BlockID,
+        latch_id: &BlockID,
+        preheader_create: PreHeaderCreate,
+    ) {
+        let preheader = match preheader_create {
+            PreHeaderCreate::Create => Loop::create_preheader(cfg, header_id),
+            PreHeaderCreate::DontCreate => cfg
+                .id_to_bb
+                .get(header_id)
+                .unwrap()
+                .borrow()
+                .predecessors
+                .first()
+                .unwrap()
+                .clone(),
+        };
+
+        // Self{
+        //     preheader : preheader,
+        //     header : cfg.id_to_bb.get(header_id).unwrap().clone(),
+        //     l
+        // }
+    }
+
+    pub fn create_preheader(cfg: &mut CFG, header_id: &BlockID) -> BbPtr {
+        // Create a new BbPtr from cfg's basic block counter
+        let label = match cfg
+            .id_to_bb
+            .get(header_id)
+            .unwrap()
+            .borrow()
+            .instrs
+            .front()
+            .clone()
+            .unwrap()
+        {
+            InstructionOrLabel::Label(label) => label.label.clone(),
+            _ => panic!("Would never happen"),
+        };
+
+        let bb = BasicBlock::default_with_label(cfg.basic_block_counter, &(label + "_preheader"));
+        eprintln!("{:?}", bb.instrs);
+        eprintln!("BB ptr has id {}", bb.id);
+        let bb_ptr = BbPtr::new(bb.into());
+
+        // locate the header id
+
+        let header_bb_ptr = cfg.id_to_bb.get(header_id).unwrap();
+
+        let mut bb_ptr_mut = bb_ptr.borrow_mut();
+        // bbptr's successor is header id
+        bb_ptr_mut.successors.push(header_bb_ptr.clone());
+        //
+
+        // All successor of bb_ptr should now point to bb_ptr instead of header_ptr
+        //
+        for pred in header_bb_ptr.borrow().predecessors.iter() {
+            if header_bb_ptr.borrow().id == pred.borrow().id {
+                panic!("I detect a self loop here, is this valid for a bril IR ?");
+            }
+            let pred_id = pred.borrow().id;
+            eprintln!("Predecessor {}", pred_id);
+            for succ in pred.borrow_mut().successors.iter_mut() {
+                if succ.borrow().id != *header_id {
+                    continue;
+                }
+
+                eprintln!("Predecessor {} has {header_id} before", pred_id);
+                *succ = bb_ptr.clone();
+            }
+            // for succ in pred.borrow().successors.iter() {
+            //     if succ.borrow().id != *header_id {
+            //         continue;
+            //     }
+            //
+            //     eprintln!("Predecessor {} has {} after", pred_id, succ.borrow().id);
+            // }
+        }
+        // any predecessor of header id is now bbptr's
+        bb_ptr_mut
+            .predecessors
+            .append(&mut header_bb_ptr.borrow_mut().predecessors);
+        // header id's only predecessor is bbptr
+        header_bb_ptr.borrow_mut().predecessors = Vec::new();
+        header_bb_ptr.borrow_mut().predecessors.push(bb_ptr.clone());
+
+        eprintln!("Before, hm has {}", cfg.hm.len());
+        // Now, put this to the hashmap before i forgot
+        cfg.hm
+            .insert(bb_ptr_mut.instrs.front().unwrap().clone(), bb_ptr.clone());
+        cfg.id_to_bb.insert(cfg.basic_block_counter, bb_ptr.clone());
+        eprintln!("Create a new block with id :  {}", cfg.basic_block_counter);
+        cfg.basic_block_counter += 1;
+
+        eprintln!("After, hm has {}", cfg.hm.len());
+        bb_ptr.clone()
+    }
 }
 pub struct Loops {
     pub loops: Vec<Loop>,
 }
 
 impl Loops {
-    fn new(cfg: &CFG) {
+    fn new(cfg: &mut CFG) {
         let dominance = DominanceDataFlow::new(cfg);
-
+        let mut loop_start_end = BTreeMap::<BlockID, BTreeSet<BlockID>>::new();
         for (dominated, dominator_set) in &dominance.domset {
             match cfg.id_to_bb.get(dominated) {
                 Some(bbptr) => {
                     for succ in bbptr.borrow().successors.iter() {
                         let succ_id = &succ.borrow().id;
                         if dominator_set.contains(succ_id) {
-                            eprintln!("I see a loop from block {} to block {}", succ_id, dominated)
+                            eprintln!("I see a loop from block {} to block {}", succ_id, dominated);
+                            loop_start_end
+                                .entry(*succ_id)
+                                .or_default()
+                                .insert(*dominated);
                         }
                     }
                 }
-                _ => todo!(),
+                _ => panic!("This should not happen. All block id should be accounted for"),
+            }
+        }
+
+        let created_header = BTreeSet::<BlockID>::new();
+
+        let loops = Vec::<Loop>::new();
+        for (header_id, latches) in loop_start_end {
+            for latch_id in latches {
+                let precreate: PreHeaderCreate = match created_header.contains(&header_id) {
+                    false => PreHeaderCreate::Create,
+                    true => PreHeaderCreate::DontCreate,
+                };
+
+                let singly_loop =
+                    Loop::new_with_header_and_latch(cfg, &header_id, &latch_id, precreate);
             }
         }
         //for (_, bb_ptr) in cfg.hm.iter() {
