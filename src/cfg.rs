@@ -4,7 +4,7 @@ use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 use crate::dominance::DominanceDataFlow;
 use std::collections::LinkedList;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     fmt::Debug,
 };
 
@@ -13,6 +13,7 @@ pub struct CFG {
     pub hm: HashMap<InstructionOrLabel, BbPtr>,
     pub basic_block_counter: BlockID,
     pub id_to_bb: IdToBbMap,
+    pub bb_ptr_vec: LinkedList<BbPtr>,
 }
 // main:
 // @main
@@ -47,6 +48,7 @@ impl CFG {
 
         let mut id_to_bb = HashMap::<BlockID, BbPtr>::new();
 
+        let mut bb_ptr_vec = LinkedList::<BbPtr>::new();
         let mut basic_block_counter: BlockID = 0;
         // Iterate to put basic blocks into the graph
         for func in p.functions {
@@ -55,6 +57,7 @@ impl CFG {
             for bb in simple_basic_blocks_vec_from_function {
                 hm.insert(bb.borrow().instrs.front().unwrap().clone(), bb.clone());
                 id_to_bb.insert(bb.borrow().id, bb.clone());
+                bb_ptr_vec.push_back(bb.clone());
             }
         }
         // Iterate to connect them
@@ -106,6 +109,7 @@ impl CFG {
             hm,
             basic_block_counter,
             id_to_bb,
+            bb_ptr_vec,
         }
     }
 
@@ -117,48 +121,34 @@ impl CFG {
 
         // The function is here just because we want to maintain the initial order of function in
         // textual IR
-        let mut sorted_by_func_id: Vec<BbPtr> = self.hm.values().cloned().collect();
+        // If encountered a function,
 
-        // Sort the vector by the 'id' field
-        sorted_by_func_id.sort_by_key(|e| e.borrow().id);
+        let mut func: Function = Function {
+            name: "Dummy".to_string(),
+            instrs: Vec::new(),
+            args: None,
+            bril_type: None,
+        };
+        let mut first_func = true;
 
-        for i in sorted_by_func_id {
-            if i.borrow().func.is_some() {
-                p.functions.push(self.insert_instr_func(i.clone()));
-            }
-        }
-        p
-    }
-
-    fn insert_instr_func(&self, bb: BbPtr) -> Function {
-        let mut visited = HashSet::<BlockID>::default();
-        let mut q = VecDeque::<BbPtr>::default();
-        let mut vec_instr = Vec::<InstructionOrLabel>::new();
-        q.push_back(bb.clone());
-        visited.insert(bb.borrow().id);
-        let mut v = Vec::default();
-        v.push(bb.clone());
-        while !q.is_empty() {
-            let visit_bb = q.pop_front().unwrap();
-
-            for succ in visit_bb.borrow().successors.iter() {
-                let a = succ.borrow().id;
-                if !visited.contains(&a) {
-                    q.push_back(succ.clone());
-                    v.push(succ.clone());
-                    visited.insert(a);
+        eprintln!("Size of bb ptr vec : {}", self.bb_ptr_vec.len());
+        for bb_ptr in self.bb_ptr_vec.iter() {
+            eprintln!("{}", bb_ptr.borrow().func.is_some());
+            if bb_ptr.borrow().func.is_some() {
+                if first_func {
+                    first_func = false;
+                } else {
+                    p.functions.push(func);
                 }
+                func = bb_ptr.borrow().func.clone().unwrap();
+            }
+            for instr in bb_ptr.borrow().instrs.iter() {
+                func.instrs.push(instr.clone());
             }
         }
-        // v.sort_by_key(|bb| bb.borrow().id);
-
-        for bb in v {
-            vec_instr.extend(bb.borrow().instrs.clone());
-        }
-        let mut func = bb.borrow().func.clone().unwrap().clone();
-        func.instrs = vec_instr;
-
-        func
+        p.functions.push(func);
+        eprintln!("{:?}", p);
+        p
     }
 
     pub fn print_hm(&self) {
@@ -304,7 +294,7 @@ pub struct Loop {
     pub preheader: BbPtr,
     pub header: BbPtr,
     pub latch: BbPtr,
-    pub loop_nodes: LinkedList<BbPtr>,
+    pub loop_nodes: VecDeque<BbPtr>,
     pub exit: Option<BbPtr>,
 }
 
@@ -331,7 +321,7 @@ impl Loop {
                 .unwrap()
                 .clone(),
         };
-
+        Self::bfs_from_latches_to_head(cfg, header_id, latch_id);
         // Self{
         //     preheader : preheader,
         //     header : cfg.id_to_bb.get(header_id).unwrap().clone(),
@@ -348,7 +338,6 @@ impl Loop {
             .borrow()
             .instrs
             .front()
-            .clone()
             .unwrap()
         {
             InstructionOrLabel::Label(label) => label.label.clone(),
@@ -364,9 +353,8 @@ impl Loop {
 
         let header_bb_ptr = cfg.id_to_bb.get(header_id).unwrap();
 
-        let mut bb_ptr_mut = bb_ptr.borrow_mut();
         // bbptr's successor is header id
-        bb_ptr_mut.successors.push(header_bb_ptr.clone());
+        bb_ptr.borrow_mut().successors.push(header_bb_ptr.clone());
         //
 
         // All successor of bb_ptr should now point to bb_ptr instead of header_ptr
@@ -394,7 +382,8 @@ impl Loop {
             // }
         }
         // any predecessor of header id is now bbptr's
-        bb_ptr_mut
+        bb_ptr
+            .borrow_mut()
             .predecessors
             .append(&mut header_bb_ptr.borrow_mut().predecessors);
         // header id's only predecessor is bbptr
@@ -403,14 +392,74 @@ impl Loop {
 
         eprintln!("Before, hm has {}", cfg.hm.len());
         // Now, put this to the hashmap before i forgot
-        cfg.hm
-            .insert(bb_ptr_mut.instrs.front().unwrap().clone(), bb_ptr.clone());
+        cfg.hm.insert(
+            bb_ptr.borrow_mut().instrs.front().unwrap().clone(),
+            bb_ptr.clone(),
+        );
         cfg.id_to_bb.insert(cfg.basic_block_counter, bb_ptr.clone());
+
+        //let mut tail = self.instrs.split_off(position);
+        //
+        //self.instrs.push_back(ilb.clone()); // Manually walk the iterator to the desired position
+        //self.instrs.append(&mut tail);
+        let mut i: usize = 0;
+        for bb_ptr in cfg.bb_ptr_vec.iter() {
+            if bb_ptr.borrow().id == *header_id {
+                break;
+            }
+            i += 1;
+        }
+        let mut tail = cfg.bb_ptr_vec.split_off(i);
+        cfg.bb_ptr_vec.push_back(bb_ptr.clone());
+
+        cfg.bb_ptr_vec.append(&mut tail);
         eprintln!("Create a new block with id :  {}", cfg.basic_block_counter);
         cfg.basic_block_counter += 1;
 
         eprintln!("After, hm has {}", cfg.hm.len());
         bb_ptr.clone()
+    }
+
+    ///  We basically bfs from the latches up to the header
+    fn bfs_from_latches_to_head(
+        cfg: &mut CFG,
+        header_id: &BlockID,
+        latch_id: &BlockID,
+    ) -> VecDeque<BbPtr> {
+        let header_bb = cfg.id_to_bb.get(header_id).unwrap();
+        let latch_bb = cfg.id_to_bb.get(latch_id).unwrap();
+
+        let mut q = VecDeque::new();
+        q.push_back(latch_bb.clone());
+
+        let mut loop_nodes = VecDeque::new();
+        loop_nodes.push_back(latch_bb.clone());
+
+        let mut visited = BTreeSet::<BlockID>::new();
+        visited.insert(latch_bb.borrow().id);
+
+        eprintln!("Putting in the back the latch : {}", latch_id);
+        while !q.is_empty() {
+            let a = q.pop_front().unwrap();
+
+            if a.borrow().id == *header_id {
+                continue;
+            }
+
+            for preq in a.borrow().predecessors.clone() {
+                if !visited.contains(&preq.borrow().id) && preq.borrow().id != *header_id {
+                    q.push_front(preq.clone());
+                    loop_nodes.push_front(preq.clone());
+                }
+            }
+        }
+        loop_nodes.push_front(header_bb.clone());
+        eprintln!("From start to finish");
+        for node in loop_nodes.iter() {
+            eprintln!("Node {}", node.borrow().id);
+        }
+
+        loop_nodes
     }
 }
 pub struct Loops {
@@ -442,6 +491,11 @@ impl Loops {
         let created_header = BTreeSet::<BlockID>::new();
 
         let loops = Vec::<Loop>::new();
+
+        // Now, given our header and our latch, we can construct a loop by first finding all the
+        // loop nodes.
+        //
+        // then add them together
         for (header_id, latches) in loop_start_end {
             for latch_id in latches {
                 let precreate: PreHeaderCreate = match created_header.contains(&header_id) {
@@ -449,8 +503,7 @@ impl Loops {
                     true => PreHeaderCreate::DontCreate,
                 };
 
-                let singly_loop =
-                    Loop::new_with_header_and_latch(cfg, &header_id, &latch_id, precreate);
+                Loop::new_with_header_and_latch(cfg, &header_id, &latch_id, precreate);
             }
         }
         //for (_, bb_ptr) in cfg.hm.iter() {
