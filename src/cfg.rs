@@ -122,13 +122,15 @@ impl CFG {
         // The function is here just because we want to maintain the initial order of function in
         // textual IR
         // If encountered a function,
-
-        let mut func: Function = Function {
+        #[warn(unused_assignments)]
+        let mut dummy_func: Function = Function {
             name: "Dummy".to_string(),
             instrs: Vec::new(),
             args: None,
             bril_type: None,
         };
+
+        let mut func = dummy_func.clone();
         let mut first_func = true;
 
         eprintln!("Size of bb ptr vec : {}", self.bb_ptr_vec.len());
@@ -141,13 +143,16 @@ impl CFG {
                     p.functions.push(func);
                 }
                 func = bb_ptr.borrow().func.clone().unwrap();
+                func.instrs.clear();
             }
+            eprintln!("Getting instr from {}", bb_ptr.borrow().id);
             for instr in bb_ptr.borrow().instrs.iter() {
                 func.instrs.push(instr.clone());
             }
         }
         p.functions.push(func);
         eprintln!("{:?}", p);
+        eprintln!("Size is {:?}", p.functions.len());
         p
     }
 
@@ -308,7 +313,7 @@ impl Loop {
         header_id: &BlockID,
         latch_id: &BlockID,
         preheader_create: PreHeaderCreate,
-    ) {
+    ) -> Loop {
         let preheader = match preheader_create {
             PreHeaderCreate::Create => Loop::create_preheader(cfg, header_id),
             PreHeaderCreate::DontCreate => cfg
@@ -321,7 +326,15 @@ impl Loop {
                 .unwrap()
                 .clone(),
         };
-        Self::bfs_from_latches_to_head(cfg, header_id, latch_id);
+        let loop_nodes = Self::bfs_from_latches_to_head(cfg, header_id, latch_id);
+
+        Self {
+            preheader,
+            header: cfg.id_to_bb.get(header_id).unwrap().clone(),
+            latch: cfg.id_to_bb.get(latch_id).unwrap().clone(),
+            loop_nodes,
+            exit: None,
+        }
         // Self{
         //     preheader : preheader,
         //     header : cfg.id_to_bb.get(header_id).unwrap().clone(),
@@ -467,7 +480,7 @@ pub struct Loops {
 }
 
 impl Loops {
-    fn new(cfg: &mut CFG) {
+    fn new(cfg: &mut CFG) -> Loops {
         let dominance = DominanceDataFlow::new(cfg);
         let mut loop_start_end = BTreeMap::<BlockID, BTreeSet<BlockID>>::new();
         for (dominated, dominator_set) in &dominance.domset {
@@ -490,7 +503,7 @@ impl Loops {
 
         let created_header = BTreeSet::<BlockID>::new();
 
-        let loops = Vec::<Loop>::new();
+        let mut loops = Vec::<Loop>::new();
 
         // Now, given our header and our latch, we can construct a loop by first finding all the
         // loop nodes.
@@ -503,7 +516,9 @@ impl Loops {
                     true => PreHeaderCreate::DontCreate,
                 };
 
-                Loop::new_with_header_and_latch(cfg, &header_id, &latch_id, precreate);
+                loops.push(Loop::new_with_header_and_latch(
+                    cfg, &header_id, &latch_id, precreate,
+                ));
             }
         }
         //for (_, bb_ptr) in cfg.hm.iter() {
@@ -515,6 +530,8 @@ impl Loops {
         //        }
         //    }
         //}
+        //
+        Self { loops }
     }
 
     pub fn variable_in_a_loop(&self, _variable_name: String) -> bool {
