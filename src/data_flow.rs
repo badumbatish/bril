@@ -29,7 +29,7 @@ pub enum DataFlowOrder {
     EntryNodesOnly,
     PostOrderDFS,
     BFS,
-    Subset(Vec<BbPtr>),
+    Subset(VecDeque<BbPtr>),
 }
 pub trait DataFlowAnalysis {
     fn meet(&mut self, bb: &mut BasicBlock);
@@ -115,12 +115,9 @@ impl CFG {
             _ => self.dataflow_normal(d),
         }
     }
-    fn dataflow_subset(&self, d: &mut impl DataFlowAnalysis, subset: &Vec<BbPtr>) {
+    fn dataflow_subset(&self, d: &mut impl DataFlowAnalysis, subset: &VecDeque<BbPtr>) {
         let mut q = VecDeque::<BbPtr>::default();
-        for bb_ptr in subset {
-            q.push_back(bb_ptr.clone());
-        }
-
+        q.extend(subset.clone());
         let mut changed = true;
         while changed {
             changed = false;
@@ -134,9 +131,7 @@ impl CFG {
                 }
             }
             if changed {
-                for bb_ptr in subset {
-                    q.push_back(bb_ptr.clone());
-                }
+                q.extend(subset.clone());
             }
         }
         for i in self.hm.iter() {
@@ -151,7 +146,7 @@ impl CFG {
                     DataFlowOrder::EntryNodesOnly => q.push_back(i.1.clone()),
                     DataFlowOrder::BFS => q.extend(Self::bfs_children(&mut i.1.clone())),
                     DataFlowOrder::PostOrderDFS => todo!(),
-                    _ => todo!(),
+                    _ => return,
                 }
                 while !q.is_empty() {
                     let visit_bb = q.pop_front().expect("hi").clone();
