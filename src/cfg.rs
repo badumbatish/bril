@@ -123,7 +123,7 @@ impl CFG {
         // textual IR
         // If encountered a function,
         #[warn(unused_assignments)]
-        let mut dummy_func: Function = Function {
+        let dummy_func: Function = Function {
             name: "Dummy".to_string(),
             instrs: Vec::new(),
             args: None,

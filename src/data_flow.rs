@@ -1,6 +1,6 @@
-use crate::basic_block::BasicBlock;
 use crate::bril_syntax::InstructionOrLabel;
 use crate::cfg::CFG;
+use crate::{aliases::BbPtr, basic_block::BasicBlock};
 use std::{
     cell::RefCell,
     collections::{HashSet, VecDeque},
@@ -29,6 +29,7 @@ pub enum DataFlowOrder {
     EntryNodesOnly,
     PostOrderDFS,
     BFS,
+    Subset(Vec<BbPtr>),
 }
 pub trait DataFlowAnalysis {
     fn meet(&mut self, bb: &mut BasicBlock);
@@ -109,13 +110,48 @@ impl CFG {
         // do the dataflow
         //
         //
-        let mut q = VecDeque::<Rc<RefCell<BasicBlock>>>::default();
+        match d.get_dataflow_order() {
+            DataFlowOrder::Subset(subset) => self.dataflow_subset(d, &subset),
+            _ => self.dataflow_normal(d),
+        }
+    }
+    fn dataflow_subset(&self, d: &mut impl DataFlowAnalysis, subset: &Vec<BbPtr>) {
+        let mut q = VecDeque::<BbPtr>::default();
+        for bb_ptr in subset {
+            q.push_back(bb_ptr.clone());
+        }
+
+        let mut changed = true;
+        while changed {
+            changed = false;
+            while !q.is_empty() {
+                let visit_bb = q.pop_front().expect("hi").clone();
+                // visit_bb.borrow_mut();
+                d.meet(&mut visit_bb.borrow_mut());
+
+                if d.transfer(&mut visit_bb.borrow_mut()) == TransferResult::Changed {
+                    changed = true;
+                }
+            }
+            if changed {
+                for bb_ptr in subset {
+                    q.push_back(bb_ptr.clone());
+                }
+            }
+        }
+        for i in self.hm.iter() {
+            d.transform(&mut i.1.borrow_mut())
+        }
+    }
+    fn dataflow_normal(&self, d: &mut impl DataFlowAnalysis) {
+        let mut q = VecDeque::<BbPtr>::default();
         for i in self.hm.clone() {
             if i.1.borrow_mut().func.is_some() {
                 match d.get_dataflow_order() {
                     DataFlowOrder::EntryNodesOnly => q.push_back(i.1.clone()),
                     DataFlowOrder::BFS => q.extend(Self::bfs_children(&mut i.1.clone())),
                     DataFlowOrder::PostOrderDFS => todo!(),
+                    _ => todo!(),
                 }
                 while !q.is_empty() {
                     let visit_bb = q.pop_front().expect("hi").clone();
