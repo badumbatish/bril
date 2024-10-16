@@ -5,7 +5,7 @@ use crate::dominance::DominanceDataFlow;
 use crate::loops::Loops;
 use std::collections::LinkedList;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Debug,
 };
 

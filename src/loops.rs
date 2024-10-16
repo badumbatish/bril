@@ -10,6 +10,8 @@ use crate::{
 };
 
 pub struct Loop {
+    var_set: BTreeSet<String>,
+    licm_set: BTreeSet<String>,
     pub preheader: BbPtr,
     pub header: BbPtr,
     pub latch: BbPtr,
@@ -21,6 +23,10 @@ pub enum PreHeaderCreate {
     Create,
     DontCreate,
 }
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
+
+pub enum LatticeValue {}
 impl DataFlowAnalysis for Loop {
     fn meet(&mut self, bb: &mut BasicBlock) {
         todo!()
@@ -63,13 +69,17 @@ impl Loop {
         };
         let loop_nodes = Self::bfs_from_latches_to_head(cfg, header_id, latch_id);
 
-        Self {
+        let mut l = Self {
+            var_set: BTreeSet::default(),
+            licm_set: BTreeSet::default(),
             preheader,
             header: cfg.id_to_bb.get(header_id).unwrap().clone(),
             latch: cfg.id_to_bb.get(latch_id).unwrap().clone(),
             loop_nodes,
             exit: None,
-        }
+        };
+        l.var_set = l.list_var_in_loop();
+        l
         // Self{
         //     preheader : preheader,
         //     header : cfg.id_to_bb.get(header_id).unwrap().clone(),
@@ -214,15 +224,9 @@ impl Loop {
         let mut result = BTreeSet::new();
         for bb_ptr in self.loop_nodes.iter() {
             for instr in bb_ptr.borrow().instrs.iter() {
-                match instr {
-                    InstructionOrLabel::Instruction(i) => match &i.dest {
-                        Some(dest) => {
-                            result.insert(dest.clone());
-                        }
-                        _ => {}
-                    },
-                    _ => {}
-                }
+                if let InstructionOrLabel::Instruction(i) = instr { if let Some(dest) = &i.dest {
+                    result.insert(dest.clone());
+                } }
             }
         }
 
