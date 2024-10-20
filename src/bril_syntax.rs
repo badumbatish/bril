@@ -1,10 +1,9 @@
+use serde_derive::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::{
     fmt::Display,
     io::{self, Read},
 };
-
-use serde_derive::{Deserialize, Serialize};
-use serde_json::{json, Value};
 
 #[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -26,7 +25,6 @@ impl Display for BrilType {
         }
     }
 }
-
 // Define a structure to represent the JSON format
 #[derive(Serialize, Deserialize, Debug, Hash, Clone, PartialEq, Eq)]
 pub struct Instruction {
@@ -45,6 +43,8 @@ pub struct Instruction {
     pub funcs: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub labels: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instruction_id: Option<usize>,
     #[serde(flatten)]
     pub other_fields: Value, // Store unknown fields here
 }
@@ -68,8 +68,8 @@ pub enum InstructionOrLabel {
     Instruction(Instruction),
 }
 impl InstructionOrLabel {
-    pub fn new_phi(def: String) -> Self {
-        InstructionOrLabel::Instruction(Instruction::new_phi(def))
+    pub fn new_phi(def: String, instruction_counter: &mut usize) -> Self {
+        InstructionOrLabel::Instruction(Instruction::new_phi(def, instruction_counter))
     }
     pub fn new_dummy_head(header_name: String) -> Self {
         InstructionOrLabel::Label(Label { label: header_name })
@@ -127,8 +127,8 @@ pub struct Program {
 }
 
 impl Instruction {
-    pub fn new_phi(def: String) -> Self {
-        Self {
+    pub fn new_phi(def: String, instruction_counter: &mut usize) -> Self {
+        let result = Self {
             op: "phi".to_string(),
             dest: Some(def),
             args: Default::default(),
@@ -136,8 +136,12 @@ impl Instruction {
             value: Default::default(),
             funcs: Default::default(),
             labels: Default::default(),
+            instruction_id: Some(*instruction_counter),
             other_fields: Default::default(),
-        }
+        };
+
+        *instruction_counter += 1;
+        result
     }
 
     pub fn rename_phi(&mut self, from: String, to: String, block_label: String) {

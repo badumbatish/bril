@@ -2,9 +2,9 @@ use bril::bril_syntax::Program;
 use bril::cfg::CFG;
 fn main() {
     // Filter out "nop" instructions for each function
-    let prog = Program::stdin();
+    let mut prog = Program::stdin();
 
-    let cfg = CFG::from_program(prog);
+    let cfg = CFG::from_program(&mut prog);
 
     println!("Block count : {}", cfg.hm.len());
 

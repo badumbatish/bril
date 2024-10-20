@@ -13,6 +13,7 @@ use std::{
 pub struct CFG {
     pub hm: HashMap<InstructionOrLabel, BbPtr>,
     pub basic_block_counter: BlockID,
+    pub instruction_counter: usize,
     pub id_to_bb: IdToBbMap,
     pub bb_ptr_vec: LinkedList<BbPtr>,
 }
@@ -44,15 +45,29 @@ impl CFG {
     //    (hm, id_to_bb)
     //    // O(n)
     //}
-    pub fn from_program(p: Program) -> Self {
+    pub fn from_program(p: &mut Program) -> Self {
         let mut hm = HashMap::<InstructionOrLabel, BbPtr>::new();
 
         let mut id_to_bb = HashMap::<BlockID, BbPtr>::new();
 
         let mut bb_ptr_vec = LinkedList::<BbPtr>::new();
         let mut basic_block_counter: BlockID = 0;
+        let mut instruction_counter: usize = 0;
+        // Initialize the id first.
+        for func in p.functions.iter_mut() {
+            for instr in func.instrs.iter_mut() {
+                match instr {
+                    InstructionOrLabel::Instruction(ref mut i) => {
+                        eprintln!("Adding instruction counter {instruction_counter}");
+                        i.instruction_id = Some(instruction_counter);
+                        instruction_counter += 1;
+                    }
+                    InstructionOrLabel::Label(_l) => {}
+                }
+            }
+        }
         // Iterate to put basic blocks into the graph
-        for func in p.functions {
+        for func in p.functions.iter() {
             let simple_basic_blocks_vec_from_function =
                 BasicBlock::simple_basic_blocks_vec_from_function(func, &mut basic_block_counter);
             for bb in simple_basic_blocks_vec_from_function {
@@ -109,6 +124,7 @@ impl CFG {
         Self {
             hm,
             basic_block_counter,
+            instruction_counter,
             id_to_bb,
             bb_ptr_vec,
         }
@@ -149,6 +165,14 @@ impl CFG {
             eprintln!("Getting instr from {}", bb_ptr.borrow().id);
             for instr in bb_ptr.borrow().instrs.iter() {
                 func.instrs.push(instr.clone());
+                match func.instrs.last_mut().unwrap() {
+                    InstructionOrLabel::Label(_) => {}
+                    InstructionOrLabel::Instruction(instruction) => {
+                        if instruction.instruction_id.is_none() {
+                            panic!("Goddammnit, I can't afford to have a null instruction id, each need to be accounted for so that I can perform alias analysis")
+                        }
+                    }
+                }
             }
         }
         p.functions.push(func);
@@ -242,7 +266,7 @@ impl CFG {
         let df = dff.infer(self).df.clone();
 
         // INFO: A function to place phi functions down
-        let place_phi_functions = || {
+        let mut place_phi_functions = || {
             for (var, defs_of_var) in defs.iter() {
                 for defining_block in defs_of_var.iter() {
                     for block in df[defining_block].iter() {
@@ -260,7 +284,7 @@ impl CFG {
                         } else {
                             let mut block_mut_b = self.id_to_bb[block].borrow_mut();
 
-                            block_mut_b.insert_phi_def(var, label);
+                            block_mut_b.insert_phi_def(var, label, &mut self.instruction_counter);
                         }
                     }
                 }

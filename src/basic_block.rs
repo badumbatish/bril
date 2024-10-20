@@ -191,7 +191,12 @@ impl BasicBlock {
             }
         }
     }
-    pub fn insert_phi_def(&mut self, def: &String, label: InstructionOrLabel) {
+    pub fn insert_phi_def(
+        &mut self,
+        def: &String,
+        label: InstructionOrLabel,
+        instruction_counter: &mut usize,
+    ) {
         //eprintln!("Insert phi def into {}", self.id);
         for i in self.instrs.iter_mut() {
             match i {
@@ -212,7 +217,10 @@ impl BasicBlock {
             }
         }
 
-        self.insert_at(1, &InstructionOrLabel::new_phi(def.clone())); // Insert the new element at the current iterator position
+        self.insert_at(
+            1,
+            &InstructionOrLabel::new_phi(def.clone(), instruction_counter),
+        ); // Insert the new element at the current iterator position
 
         for i in self.instrs.iter_mut() {
             match i {
@@ -297,12 +305,12 @@ impl BasicBlock {
     }
 
     pub fn simple_basic_blocks_vec_from_function(
-        f: Function,
-        id: &mut BlockID,
+        f: &Function,
+        block_id: &mut BlockID,
     ) -> Vec<Rc<RefCell<BasicBlock>>> {
         let mut result: Vec<Rc<RefCell<BasicBlock>>> = Vec::new();
         let mut i = 0;
-        let entry_bb = BasicBlock::default(*id);
+        let entry_bb = BasicBlock::default(*block_id);
         let entry_bb_rcf: Rc<RefCell<BasicBlock>> = Rc::<RefCell<BasicBlock>>::new(entry_bb.into());
         let entry_header_name = "entry".to_string() + &f.name;
 
@@ -310,7 +318,7 @@ impl BasicBlock {
             .borrow_mut()
             .instrs
             .push_back(InstructionOrLabel::new_dummy_head(entry_header_name));
-        *id += 1;
+        *block_id += 1;
         entry_bb_rcf.borrow_mut().func = Some(f.clone());
         result.push(entry_bb_rcf);
         // let mut last_instruction_before_construction = 0;
@@ -318,12 +326,10 @@ impl BasicBlock {
         while i < f.instrs.len() {
             // this match only happens if instruction is at start of function or after a branch
             // without label
-            let b: BasicBlock = BasicBlock::default(*id);
+            let b: BasicBlock = BasicBlock::default(*block_id);
             let bb: Rc<RefCell<BasicBlock>> = Rc::<RefCell<BasicBlock>>::new(b.into());
-            *id += 1;
-            if result.is_empty() {
-                bb.borrow_mut().func = Some(f.clone());
-            } else if !non_linear_before {
+            *block_id += 1;
+            if !non_linear_before {
                 bb.borrow_mut()
                     .predecessors
                     .push(result.last().unwrap().clone());
@@ -345,6 +351,10 @@ impl BasicBlock {
                 }
                 match &f.instrs[i] {
                     InstructionOrLabel::Instruction(instr) => {
+                        if instr.instruction_id.is_none() {
+                            eprintln!("This has None : {:?}", instr);
+                            panic!();
+                        }
                         bb_mut
                             .instrs
                             .push_back(InstructionOrLabel::Instruction(instr.clone()));

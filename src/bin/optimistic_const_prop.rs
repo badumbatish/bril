@@ -349,9 +349,9 @@ impl ConditionalDataFlowAnalysis for OptimisticConstProp {
     }
 }
 fn main() {
-    let prog = Program::stdin();
+    let mut prog = Program::stdin();
 
-    let cfg = CFG::from_program(prog);
+    let cfg = CFG::from_program(&mut prog);
     let mut d = OptimisticConstProp::new();
     cfg.dataflow_forward_optimistically(&mut d);
     let prog = cfg.to_program();
