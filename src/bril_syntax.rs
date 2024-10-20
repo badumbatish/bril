@@ -13,6 +13,7 @@ pub enum BrilType {
     Int,
     Bool,
     Float,
+    Ptr(Box<BrilType>), // Ptr variant that points to another BrilType
 }
 
 impl Display for BrilType {
@@ -21,6 +22,7 @@ impl Display for BrilType {
             BrilType::Int => write!(f, "int"),
             BrilType::Bool => write!(f, "bool"),
             BrilType::Float => write!(f, "float"),
+            BrilType::Ptr(bril_type) => write!(f, "ptr<{}>", bril_type),
         }
     }
 }

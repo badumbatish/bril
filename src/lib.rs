@@ -1,3 +1,4 @@
+pub mod alias_analysis;
 pub mod aliases;
 pub mod basic_block;
 pub mod bril_syntax;

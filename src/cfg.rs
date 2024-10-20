@@ -1,10 +1,9 @@
 use crate::aliases::{BbPtr, BlockID, IdToBbMap};
 use crate::basic_block::BasicBlock;
 use crate::bril_syntax::{Function, InstructionOrLabel, Program};
-use crate::data_flow::DataFlowAnalysis;
 use crate::dominance::DominanceDataFlow;
 use crate::loops::Loops;
-use std::collections::{LinkedList, VecDeque};
+use std::collections::LinkedList;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Debug,
