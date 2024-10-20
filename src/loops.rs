@@ -10,43 +10,20 @@ use crate::{
 };
 
 pub struct Loop {
-    var_set: BTreeSet<String>,
-    licm_set: BTreeSet<String>,
     pub preheader: BbPtr,
     pub header: BbPtr,
     pub latch: BbPtr,
     pub loop_nodes: VecDeque<BbPtr>,
     pub exit: Option<BbPtr>,
+    pub defined_variables: BTreeSet<String>,
+
+    // INFO: Dataflow information
+    pub invariant_variable_maps: BTreeMap<usize, BTreeSet<String>>,
 }
 
 pub enum PreHeaderCreate {
     Create,
     DontCreate,
-}
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Copy)]
-
-pub enum LatticeValue {}
-impl DataFlowAnalysis for Loop {
-    fn meet(&mut self, bb: &mut BasicBlock) {
-        todo!()
-    }
-
-    fn transfer(&mut self, bb: &mut BasicBlock) -> crate::data_flow::TransferResult {
-        todo!()
-    }
-
-    fn transform(&mut self, bb: &mut BasicBlock) {
-        todo!()
-    }
-
-    fn get_dataflow_direction(&self) -> crate::data_flow::DataFlowDirection {
-        todo!()
-    }
-
-    fn get_dataflow_order(&self) -> crate::data_flow::DataFlowOrder {
-        crate::data_flow::DataFlowOrder::Subset(self.loop_nodes.clone())
-    }
 }
 impl Loop {
     pub fn new_with_header_and_latch(
@@ -69,17 +46,25 @@ impl Loop {
         };
         let loop_nodes = Self::bfs_from_latches_to_head(cfg, header_id, latch_id);
 
-        let mut l = Self {
-            var_set: BTreeSet::default(),
-            licm_set: BTreeSet::default(),
+        let mut result = Self {
             preheader,
             header: cfg.id_to_bb.get(header_id).unwrap().clone(),
             latch: cfg.id_to_bb.get(latch_id).unwrap().clone(),
             loop_nodes,
             exit: None,
+            defined_variables: BTreeSet::default(),
+            invariant_variable_maps: BTreeMap::default(),
         };
-        l.var_set = l.list_var_in_loop();
-        l
+
+        for node in result.loop_nodes.iter() {
+            result
+                .invariant_variable_maps
+                .entry(node.borrow().id)
+                .or_default();
+        }
+        result.defined_variables = result.get_defined_variables();
+
+        result
         // Self{
         //     preheader : preheader,
         //     header : cfg.id_to_bb.get(header_id).unwrap().clone(),
@@ -178,6 +163,24 @@ impl Loop {
         bb_ptr.clone()
     }
 
+    pub fn get_defined_variables(&self) -> BTreeSet<String> {
+        let mut result = BTreeSet::new();
+        for node in self.loop_nodes.iter() {
+            for instr in node.borrow().instrs.clone() {
+                match instr {
+                    InstructionOrLabel::Instruction(i) => {
+                        if i.dest.is_some() {
+                            result.insert(i.dest.unwrap());
+                        }
+                    }
+                    _ => {
+                        continue;
+                    }
+                }
+            }
+        }
+        result
+    }
     ///  We basically bfs from the latches up to the header
     fn bfs_from_latches_to_head(
         cfg: &mut CFG,
@@ -219,18 +222,38 @@ impl Loop {
 
         loop_nodes
     }
+}
 
-    fn list_var_in_loop(&self) -> BTreeSet<String> {
-        let mut result = BTreeSet::new();
-        for bb_ptr in self.loop_nodes.iter() {
-            for instr in bb_ptr.borrow().instrs.iter() {
-                if let InstructionOrLabel::Instruction(i) = instr { if let Some(dest) = &i.dest {
-                    result.insert(dest.clone());
-                } }
-            }
-        }
+impl DataFlowAnalysis for Loop {
+    fn meet(&mut self, bb: &mut BasicBlock) {
+        // TODO: For all predecessor, union them
+        todo!()
+    }
 
-        result
+    fn transfer(&mut self, bb: &mut BasicBlock) -> crate::data_flow::TransferResult {
+        //  A value (we are in SSA!) is loop invariant if either:
+
+        // It is defined outside the loop
+        // INFO: For this, check against self.defined_variable
+        //
+        // It is defined inside the loop, and:
+        // All arguments to the instruction are loop invariant
+        // The instruction is deterministic
+        // INFO: For this, if it is LICM, put it in invariant_variable_maps
+
+        todo!()
+    }
+
+    fn transform(&mut self, bb: &mut BasicBlock) {
+        // TODO: All the loop invariant code (in terms of definition), we move to preheader
+    }
+
+    fn get_dataflow_direction(&self) -> crate::data_flow::DataFlowDirection {
+        todo!()
+    }
+
+    fn get_dataflow_order(&self) -> crate::data_flow::DataFlowOrder {
+        crate::data_flow::DataFlowOrder::Subset(self.loop_nodes.clone())
     }
 }
 pub struct Loops {
