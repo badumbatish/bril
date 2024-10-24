@@ -194,6 +194,18 @@ impl Instruction {
     pub fn is_id(&self) -> bool {
         &self.op == "id"
     }
+    pub fn is_alloc(&self) -> bool {
+        &self.op == "alloc"
+    }
+    pub fn is_ptradd(&self) -> bool {
+        &self.op == "ptradd"
+    }
+    pub fn is_load(&self) -> bool {
+        &self.op == "load"
+    }
+    pub fn is_store(&self) -> bool {
+        &self.op == "store"
+    }
     pub fn is_jmp(&self) -> bool {
         &self.op == "jmp"
     }

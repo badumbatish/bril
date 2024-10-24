@@ -84,7 +84,7 @@ impl DominanceDataFlow {
                             continue;
                         }
                         if self.dom(*potential_candidate, *other_candidate) {
-                            //eprintln!(
+                            ////eprintln!(
                             //    "Other: {:?}, potential: {:?}. Disqualified",
                             //    other_candidate, potential_candidate
                             //);
@@ -104,7 +104,7 @@ impl DominanceDataFlow {
         // block id 1, block dom set 0 1
         // potential 0
         // if 1's domset contains 0?
-        eprintln!("Idom set: {:?}", self.idom);
+        //eprintln!("Idom set: {:?}", self.idom);
         self
     }
 
@@ -114,7 +114,7 @@ impl DominanceDataFlow {
         for (dom, idom) in self.idom.iter() {
             self.domtree.entry(*dom).or_insert(*idom);
         }
-        eprintln!("Dom tree: {:?}", self.domtree);
+        //eprintln!("Dom tree: {:?}", self.domtree);
         self
     }
 
@@ -156,7 +156,7 @@ impl DominanceDataFlow {
             }
         }
 
-        eprintln!("Dominance frontier: {:?}", self.df);
+        //eprintln!("Dominance frontier: {:?}", self.df);
         self
     }
 }
@@ -165,14 +165,14 @@ impl DataFlowAnalysis for DominanceDataFlow {
 
     fn transfer(&mut self, bb: &mut BasicBlock) -> TransferResult {
         let initial = self.domset.entry(bb.id).or_default().clone();
-        eprintln!("initial of {:?} : {:?}", bb.id, initial);
+        //eprintln!("initial of {:?} : {:?}", bb.id, initial);
         let mut pred_id = vec![];
 
         // Get the ID of predecessors
         for i in bb.predecessors.iter() {
             pred_id.push(i.borrow().id);
         }
-        eprintln!("Pred id of {:?} : {:?}", bb.id, pred_id);
+        //eprintln!("Pred id of {:?} : {:?}", bb.id, pred_id);
 
         let mut result = BTreeSet::<usize>::new();
         // Take the first set as the initial result
@@ -192,7 +192,7 @@ impl DataFlowAnalysis for DominanceDataFlow {
             *self.domset.entry(bb.id).or_default() = result.clone();
         }
 
-        eprintln!("Result {result:?}");
+        //eprintln!("Result {result:?}");
         match initial == result {
             true => TransferResult::NonChanged,
             false => TransferResult::Changed,
@@ -200,7 +200,7 @@ impl DataFlowAnalysis for DominanceDataFlow {
     }
 
     fn transform(&mut self, bb: &mut BasicBlock) {
-        eprintln!("Dominator of {:?} : {:?}", bb.id, self.domset.get(&bb.id))
+        //eprintln!("Dominator of {:?} : {:?}", bb.id, self.domset.get(&bb.id))
     }
 
     fn get_dataflow_direction(&self) -> DataFlowDirection {
