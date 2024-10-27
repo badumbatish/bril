@@ -151,7 +151,9 @@ impl Instruction {
             if let Some(labels) = &self.labels {
                 for (arg, label) in args.iter_mut().zip(labels.iter()) {
                     if *arg == from && *label == block_label {
-                        *arg = to;
+                        *arg = to.clone();
+
+                        eprintln!("Renaming {arg} from {from} to {to}");
                         return;
                     }
                 }

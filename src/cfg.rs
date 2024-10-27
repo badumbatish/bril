@@ -316,6 +316,14 @@ impl CFG {
     }
 
     pub fn analyze_loop(&mut self) {
-        Loops::new(self);
+        let mut loops = Loops::new(self);
+
+        for l in loops.loops.iter_mut() {
+            self.dataflow(l)
+        }
+        // TODO:
+        //
+        // for l in loops
+        //   cfg.dataflow(&mut l);
     }
 }

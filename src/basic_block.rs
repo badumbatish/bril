@@ -151,6 +151,8 @@ impl BasicBlock {
                             .or_default()
                             .push(fresh.clone());
 
+                        eprintln!("Pushing the fresh name of {fresh} on the stack");
+
                         //eprintln!("Renaming to {fresh}");
                         *dest = fresh; // Update i.dest with the fresh name
                     }
@@ -217,29 +219,25 @@ impl BasicBlock {
             }
         }
 
-        self.insert_at(
-            1,
-            &InstructionOrLabel::new_phi(def.clone(), instruction_counter),
-        ); // Insert the new element at the current iterator position
-
-        for i in self.instrs.iter_mut() {
-            match i {
-                InstructionOrLabel::Instruction(p) => {
-                    if p.is_phi() && p.dest.as_ref().unwrap() == def {
-                        if p.labels.is_none() {
-                            p.labels = Some(Vec::new());
-                        }
-                        if p.args.is_none() {
-                            p.args = Some(Vec::new());
-                        }
-                        p.labels.as_mut().unwrap().push(label.to_string());
-                        p.args.as_mut().unwrap().push(def.to_string());
-                        return;
-                    }
-                }
-                _ => continue,
+        // INFO: At this point we don't see any phi related to our def
+        // We create our phi and def
+        //
+        //self.push_back(&InstructionOrLabel::new_phi(
+        //    def.clone(),
+        //    instruction_counter,
+        //)); // Insert the new element at the current iterator position
+        let mut p = InstructionOrLabel::new_phi(def.clone(), instruction_counter);
+        if let InstructionOrLabel::Instruction(ref mut p) = p {
+            if p.labels.is_none() {
+                p.labels = Some(Vec::new());
             }
+            if p.args.is_none() {
+                p.args = Some(Vec::new());
+            }
+            p.labels.as_mut().unwrap().push(label.to_string());
+            p.args.as_mut().unwrap().push(def.to_string());
         }
+        self.insert_at(self.instrs.len() - 2, &p); // Insert the new element at the current iterator position
     }
 
     // Contains empty phi def

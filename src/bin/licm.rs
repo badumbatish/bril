@@ -7,7 +7,7 @@ fn main() {
     let mut cfg = CFG::from_program(&mut prog);
     cfg.place_phi_functions_and_generate_ssa();
 
-    //cfg.analyze_loop();
+    cfg.analyze_loop();
     let prog = cfg.to_program();
 
     prog.stdout()
