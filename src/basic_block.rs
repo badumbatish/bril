@@ -109,6 +109,7 @@ impl BasicBlock {
         new_to_old_names: &mut BTreeMap<String, String>,
     ) -> String {
         let fresh = var.clone() + &name_counter.get(var).unwrap_or(&0).to_string();
+        eprintln!("Old name: {}, new name : {}", var, fresh);
         *name_counter.entry(var.clone()).or_insert(0) += 1;
 
         stack_of.entry(var.clone()).or_default().push(fresh.clone());
@@ -177,17 +178,17 @@ impl BasicBlock {
                         let v = &i.dest.clone().unwrap();
                         eprintln!("v: {v}");
                         let v = if let Some(old_name) = new_to_old_names.get(v) {
-                            eprintln!(
-                                "Transformed name from name maps: {}",
-                                stack_of[old_name].last().unwrap()
-                            );
+                            //eprintln!(
+                            //    "Transformed name from name maps: {}",
+                            //    stack_of[old_name].last().unwrap()
+                            //);
                             stack_of[old_name].last().unwrap().clone()
                         } else {
-                            eprintln!(
-                                "Transformed name from stack: {}",
-                                stack_of[v].last().unwrap()
-                            );
-                            stack_of[v].last().unwrap().clone()
+                            if let Some(a) = stack_of.get(v) {
+                                a.last().unwrap().clone()
+                            } else {
+                                v.clone()
+                            }
                         };
                         let label = self.get_label();
                         if i.labels.is_none() {
@@ -366,7 +367,18 @@ impl BasicBlock {
             }
 
             let mut bb_mut = bb.borrow_mut();
-            bb_mut.instrs.push_back(f.instrs[i].clone());
+            match f.instrs[i] {
+                InstructionOrLabel::Label(_) => {
+                    bb_mut.instrs.push_back(f.instrs[i].clone());
+                }
+                _ => {
+                    bb_mut.instrs.push_back(InstructionOrLabel::new_dummy_head(
+                        f.name.clone() + &block_id.to_string(),
+                    ));
+                    bb_mut.instrs.push_back(f.instrs[i].clone());
+                }
+            }
+            //bb_mut.instrs.push_back(f.instrs[i].clone());
             i += 1;
             loop {
                 if i >= f.instrs.len() {

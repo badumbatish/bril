@@ -318,7 +318,6 @@ impl CFG {
         for (def, _) in defs.iter() {
             stack_of.entry(def.clone()).or_insert(vec![def.clone()]);
         }
-        let mut name_counter = BTreeMap::<String, usize>::new();
 
         // INFO: A function to rename operands in phi functions
 
@@ -329,12 +328,15 @@ impl CFG {
                 .or_insert(bb.borrow().instrs.clone());
         }
 
-        let mut new_to_old_names = BTreeMap::<String, String>::new();
         let mut rename_phi_defs = |stack_of: BTreeMap<String, Vec<String>>| {
             for (_, bb) in self.hm.iter() {
                 if bb.borrow().func.is_none() {
                     continue;
                 }
+                let mut new_to_old_names = BTreeMap::<String, String>::new();
+                let mut name_counter = BTreeMap::<String, usize>::new();
+
+                eprintln!("PROCESSING A NEW FN BLOCK");
                 bb.borrow_mut().rename_phi_def(
                     stack_of.clone(),
                     &dff.domtree,
