@@ -4,7 +4,7 @@ use crate::{
 };
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet, LinkedList, VecDeque},
+    collections::{BTreeMap, BTreeSet, LinkedList},
     hash::{Hash, Hasher},
     rc::Rc,
 };
