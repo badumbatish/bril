@@ -181,7 +181,6 @@ impl BasicBlock {
                 }
             }
         }
-
         for (a, b) in dom_tree.iter() {
             if *b == self.id && b != a {
                 id_to_bb[a].borrow_mut().rename_phi_def(
@@ -237,7 +236,7 @@ impl BasicBlock {
             p.labels.as_mut().unwrap().push(label.to_string());
             p.args.as_mut().unwrap().push(def.to_string());
         }
-        self.insert_at(self.instrs.len() - 2, &p); // Insert the new element at the current iterator position
+        self.insert_at(self.instrs.len() - 1, &p); // Insert the new element at the current iterator position
     }
 
     // Contains empty phi def
