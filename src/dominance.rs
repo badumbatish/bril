@@ -39,7 +39,7 @@ impl DominanceDataFlow {
             }
 
             // INITIALIZE EACH OF THE DOM TREE
-            result.domtree.entry(idb).or_default();
+            result.domtree.entry(idb).or_insert(idb);
             result.df.entry(idb).or_default();
         }
         cfg.dataflow(&mut result);

@@ -124,10 +124,10 @@ impl BasicBlock {
         name_counter: &mut BTreeMap<String, usize>,
         id_to_bb: &IdToBbMap,
         id_to_ins: &mut BTreeMap<usize, LinkedList<InstructionOrLabel>>,
-        globals: &BTreeSet<String>,
         new_to_old_names: &mut BTreeMap<String, String>,
     ) {
         // INFO: Rename phi function first
+        eprintln!("In block {} now", self.id);
         for inst in id_to_ins.entry(self.id).or_default().iter_mut() {
             if let InstructionOrLabel::Instruction(i) = inst {
                 if i.is_phi() {
@@ -158,16 +158,12 @@ impl BasicBlock {
                             .last()
                             .unwrap()
                             .clone();
-                        if globals.contains(arg) {}
                         //eprintln!("After, arg = {}", arg);
                     }
                 }
                 if let Some(dest) = &mut i.dest {
                     *dest =
                         BasicBlock::new_name(dest, &mut stack_of, name_counter, new_to_old_names);
-                    if globals.contains(dest) {
-                        // Update i.dest with the fresh name
-                    }
                 }
             }
         }
@@ -178,17 +174,15 @@ impl BasicBlock {
                         let v = &i.dest.clone().unwrap();
                         eprintln!("v: {v}");
                         let v = if let Some(old_name) = new_to_old_names.get(v) {
-                            //eprintln!(
-                            //    "Transformed name from name maps: {}",
-                            //    stack_of[old_name].last().unwrap()
-                            //);
+                            eprintln!(
+                                "Transformed name from name maps: {}",
+                                stack_of[old_name].last().unwrap()
+                            );
                             stack_of[old_name].last().unwrap().clone()
+                        } else if let Some(a) = stack_of.get(v) {
+                            a.last().unwrap().clone()
                         } else {
-                            if let Some(a) = stack_of.get(v) {
-                                a.last().unwrap().clone()
-                            } else {
-                                v.clone()
-                            }
+                            "undefined".to_string()
                         };
                         let label = self.get_label();
                         if i.labels.is_none() {
@@ -198,12 +192,14 @@ impl BasicBlock {
                             i.args = Some(Vec::new());
                         }
 
-                        if let Some(args) = &mut i.args {
-                            args.push(v.clone());
-                            //args.push(stack_of[v].last().unwrap().clone());
-                        }
                         if let Some(labels) = &mut i.labels {
-                            labels.push(label.clone());
+                            if !labels.contains(&label.clone()) {
+                                labels.push(label.clone());
+                                if let Some(args) = &mut i.args {
+                                    args.push(v.clone());
+                                    //args.push(stack_of[v].last().unwrap().clone());
+                                }
+                            }
                         }
 
                         eprintln!("Inserting {v} with {label} into {}", succ.borrow().id);
@@ -213,13 +209,13 @@ impl BasicBlock {
         }
         for (a, b) in dom_tree.iter() {
             if *b == self.id && b != a {
+                eprintln!("b: {b}, a: {a}");
                 id_to_bb[a].borrow().rename_phi_def(
                     stack_of.clone(),
                     dom_tree,
                     name_counter,
                     id_to_bb,
                     id_to_ins,
-                    globals,
                     new_to_old_names,
                 )
             }
@@ -335,6 +331,7 @@ impl BasicBlock {
         let mut result: Vec<Rc<RefCell<BasicBlock>>> = Vec::new();
         let mut i = 0;
         let entry_bb = BasicBlock::default(*block_id);
+        *block_id += 1;
         let entry_bb_rcf: Rc<RefCell<BasicBlock>> = Rc::<RefCell<BasicBlock>>::new(entry_bb.into());
         let entry_header_name = "entry".to_string() + &f.name;
 
@@ -342,7 +339,6 @@ impl BasicBlock {
             .borrow_mut()
             .instrs
             .push_back(InstructionOrLabel::new_dummy_head(entry_header_name));
-        *block_id += 1;
         entry_bb_rcf.borrow_mut().func = Some(f.clone());
         result.push(entry_bb_rcf);
         // let mut last_instruction_before_construction = 0;
@@ -351,8 +347,8 @@ impl BasicBlock {
             // this match only happens if instruction is at start of function or after a branch
             // without label
             let b: BasicBlock = BasicBlock::default(*block_id);
-            let bb: Rc<RefCell<BasicBlock>> = Rc::<RefCell<BasicBlock>>::new(b.into());
             *block_id += 1;
+            let bb: Rc<RefCell<BasicBlock>> = Rc::<RefCell<BasicBlock>>::new(b.into());
             if !non_linear_before {
                 bb.borrow_mut()
                     .predecessors

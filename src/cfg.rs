@@ -295,18 +295,20 @@ impl CFG {
                 while !work_list.is_empty() {
                     let block_id = work_list.pop_front().unwrap();
 
-                    for d in df[&block_id].iter() {
-                        let label = match self.id_to_bb[d].borrow().instrs.front().unwrap().clone()
-                        {
-                            InstructionOrLabel::Label(l) => InstructionOrLabel::Label(l),
-                            _ => continue,
-                        };
-                        if self.id_to_bb[d].borrow().contains_phi_def(&name) {
-                        } else {
-                            let mut block_mut_b = self.id_to_bb[d].borrow_mut();
-                            eprintln!("Constructing phi with  {name} from {label} at {}", d);
-                            block_mut_b.insert_phi_def(&name, &mut self.instruction_counter);
-                            work_list.push_back(*d);
+                    if let Some(df_it) = df.get(&block_id) {
+                        for d in df_it.iter() {
+                            let label =
+                                match self.id_to_bb[d].borrow().instrs.front().unwrap().clone() {
+                                    InstructionOrLabel::Label(l) => InstructionOrLabel::Label(l),
+                                    _ => continue,
+                                };
+                            if self.id_to_bb[d].borrow().contains_phi_def(&name) {
+                            } else {
+                                let mut block_mut_b = self.id_to_bb[d].borrow_mut();
+                                eprintln!("Constructing phi with  {name} from {label} at {}", d);
+                                block_mut_b.insert_phi_def(&name, &mut self.instruction_counter);
+                                work_list.push_back(*d);
+                            }
                         }
                     }
                 }
@@ -321,6 +323,9 @@ impl CFG {
 
         // INFO: A function to rename operands in phi functions
 
+        // FIX: Fix this rename_phi_def leaking out of main into other function
+        //
+        // FIX: Another case is we ssa-lized well with 1 function, but multiple function we suck
         let mut map_from_id_to_instrs = BTreeMap::<usize, LinkedList<InstructionOrLabel>>::new();
         for (_, bb) in self.hm.iter() {
             map_from_id_to_instrs
@@ -336,14 +341,23 @@ impl CFG {
                 let mut new_to_old_names = BTreeMap::<String, String>::new();
                 let mut name_counter = BTreeMap::<String, usize>::new();
 
-                eprintln!("PROCESSING A NEW FN BLOCK");
+                eprintln!(
+                    "PROCESSING A NEW FN BLOCK {} with id {}, that has {} successor",
+                    bb.borrow().func.clone().unwrap().name,
+                    bb.borrow().id,
+                    bb.borrow().successors.len()
+                );
+                eprintln!("fn block processor");
+                for succ in bb.borrow().successors.iter() {
+                    eprint!("{} - ", succ.borrow().id);
+                }
+                eprintln!();
                 bb.borrow_mut().rename_phi_def(
                     stack_of.clone(),
                     &dff.domtree,
                     &mut name_counter,
                     &self.id_to_bb,
                     &mut map_from_id_to_instrs,
-                    &globals,
                     &mut new_to_old_names,
                 )
             }

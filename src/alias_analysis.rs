@@ -24,13 +24,10 @@ impl AliasAnalysis {
         for (_, bb_ptr) in cfg.hm.iter() {
             alias_states.entry(bb_ptr.borrow().id).or_default();
             for instr in bb_ptr.borrow().instrs.iter() {
-                match instr {
-                    crate::bril_syntax::InstructionOrLabel::Instruction(i) => {
-                        if i.is_alloc() {
-                            set_of_all_memory_location.insert(i.instruction_id.unwrap());
-                        }
+                if let crate::bril_syntax::InstructionOrLabel::Instruction(i) = instr {
+                    if i.is_alloc() {
+                        set_of_all_memory_location.insert(i.instruction_id.unwrap());
                     }
-                    _ => {}
                 }
             }
         }
@@ -109,7 +106,7 @@ impl DataFlowAnalysis for AliasAnalysis {
                         changing_state
                             .entry(i.dest.clone().unwrap())
                             .or_default()
-                            .insert(i.instruction_id.clone().unwrap());
+                            .insert(i.instruction_id.unwrap());
                     }
                 }
                 _ => continue,
@@ -150,33 +147,30 @@ impl DataFlowAnalysis for AliasAnalysis {
         let mut actually_removed = BTreeSet::<usize>::new();
         let bb_state = self.alias_states.get(&bb.id).unwrap();
         for ilb in bb.instrs.clone() {
-            match ilb {
-                InstructionOrLabel::Instruction(i) => {
-                    if i.is_load() || i.is_ptradd() || i.is_alloc() || i.is_store() || i.is_id() {
-                        // for all potential memory location that args points to
+            if let InstructionOrLabel::Instruction(i) = ilb {
+                if i.is_load() || i.is_ptradd() || i.is_alloc() || i.is_store() || i.is_id() {
+                    // for all potential memory location that args points to
 
-                        // If there is anything between two stores. We say that we've used the
-                        // store instruction associated to the argument and remove them from the
-                        // to be remove
-                        if i.is_load() | i.is_ptradd() | i.is_id() {
-                            let var = i.args.clone().unwrap().first().unwrap().clone();
-                            to_be_removed.remove(&var);
-                        }
-
-                        // If it is a store, then we record it,
-                        // And if we have seen an unused store instruction associated to the
-                        // arugment, we say "ok, we can actually remove it"
-                        if i.is_store() {
-                            let var = i.args.clone().unwrap().first().unwrap().clone();
-                            if to_be_removed.contains_key(&var) {
-                                actually_removed.insert(*to_be_removed.get(&var).unwrap());
-                            }
-                            to_be_removed.insert(var, i.instruction_id.clone().unwrap());
-                        }
-                        eprintln!("To be removed : {:?}", to_be_removed)
+                    // If there is anything between two stores. We say that we've used the
+                    // store instruction associated to the argument and remove them from the
+                    // to be remove
+                    if i.is_load() | i.is_ptradd() | i.is_id() {
+                        let var = i.args.clone().unwrap().first().unwrap().clone();
+                        to_be_removed.remove(&var);
                     }
+
+                    // If it is a store, then we record it,
+                    // And if we have seen an unused store instruction associated to the
+                    // arugment, we say "ok, we can actually remove it"
+                    if i.is_store() {
+                        let var = i.args.clone().unwrap().first().unwrap().clone();
+                        if to_be_removed.contains_key(&var) {
+                            actually_removed.insert(*to_be_removed.get(&var).unwrap());
+                        }
+                        to_be_removed.insert(var, i.instruction_id.unwrap());
+                    }
+                    eprintln!("To be removed : {:?}", to_be_removed)
                 }
-                _ => {}
             }
         }
         eprintln!("Actually removed in the end : {:?}", actually_removed)
