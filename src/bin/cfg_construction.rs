@@ -4,7 +4,7 @@ fn main() {
     // Filter out "nop" instructions for each function
     let mut prog = Program::stdin();
 
-    let mut cfg = CFG::from_program(&mut prog);
+    let cfg = CFG::from_program(&mut prog);
 
     //cfg.analyze_loop();
     let prog = cfg.to_program();

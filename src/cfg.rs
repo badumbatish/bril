@@ -3,7 +3,7 @@ use crate::basic_block::BasicBlock;
 use crate::bril_syntax::{Function, InstructionOrLabel, Program};
 use crate::dominance::DominanceDataFlow;
 use crate::loops::Loops;
-use std::collections::LinkedList;
+use std::collections::{LinkedList, VecDeque};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Debug,
@@ -58,7 +58,7 @@ impl CFG {
             for instr in func.instrs.iter_mut() {
                 match instr {
                     InstructionOrLabel::Instruction(ref mut i) => {
-                        eprintln!("Adding instruction counter {instruction_counter}");
+                        //eprintln!("Adding instruction counter {instruction_counter}");
                         i.instruction_id = Some(instruction_counter);
                         instruction_counter += 1;
                     }
@@ -150,9 +150,9 @@ impl CFG {
         let mut func = dummy_func.clone();
         let mut first_func = true;
 
-        eprintln!("Size of bb ptr vec : {}", self.bb_ptr_vec.len());
+        //eprintln!("Size of bb ptr vec : {}", self.bb_ptr_vec.len());
         for bb_ptr in self.bb_ptr_vec.iter() {
-            eprintln!("{}", bb_ptr.borrow().func.is_some());
+            //eprintln!("{}", bb_ptr.borrow().func.is_some());
             if bb_ptr.borrow().func.is_some() {
                 if first_func {
                     first_func = false;
@@ -162,7 +162,7 @@ impl CFG {
                 func = bb_ptr.borrow().func.clone().unwrap();
                 func.instrs.clear();
             }
-            eprintln!("Getting instr from {}", bb_ptr.borrow().id);
+            //eprintln!("Getting instr from {}", bb_ptr.borrow().id);
             for instr in bb_ptr.borrow().instrs.iter() {
                 func.instrs.push(instr.clone());
                 match func.instrs.last_mut().unwrap() {
@@ -176,8 +176,6 @@ impl CFG {
             }
         }
         p.functions.push(func);
-        eprintln!("{:?}", p);
-        eprintln!("Size is {:?}", p.functions.len());
         p
     }
 
@@ -238,53 +236,77 @@ impl CFG {
 /// INFO: This impl block is denoted to be about SSA
 impl CFG {
     /// A map that maps a variable to all the block that defines it
-    pub fn def_variables(&mut self) -> BTreeMap<String, BTreeSet<BlockID>> {
+    pub fn global_variables(&mut self) -> (BTreeSet<String>, BTreeMap<String, BTreeSet<BlockID>>) {
         // For each blocks,
         //   For each def in each block
         //     Let a particular def be about v
         //     Add def[v].insert(block)
-        let mut result = BTreeMap::<String, BTreeSet<BlockID>>::new();
+        let mut globals = BTreeSet::<String>::new();
+        let mut blocks = BTreeMap::<String, BTreeSet<BlockID>>::new();
         for (_, bbrc) in self.hm.iter() {
-            for d in bbrc.borrow().get_definitions() {
-                if let InstructionOrLabel::Instruction(i) = d {
-                    result
-                        .entry(i.dest.clone().unwrap())
-                        .or_default()
-                        .insert(bbrc.borrow().id);
+            let mut var_kill = BTreeSet::<String>::new();
+
+            for ilb in bbrc.borrow().instrs.iter() {
+                if let InstructionOrLabel::Instruction(i) = ilb {
+                    if i.dest.is_none() || i.args.is_none() {
+                        continue;
+                    }
+                    if let Some(args) = &i.args {
+                        for arg in args {
+                            if !var_kill.contains(arg) {
+                                globals.insert(arg.clone());
+                            }
+                        }
+                    }
+                    if let Some(dest) = &i.dest {
+                        var_kill.insert(dest.clone());
+
+                        blocks
+                            .entry(dest.clone())
+                            .or_default()
+                            .insert(bbrc.borrow().id);
+                    }
                 } else {
                     continue;
                 };
             }
         }
-        result
+
+        eprintln!("Set of global variables: {:?}", globals);
+        eprintln!("Map of global variables to blocks: {:?}", blocks);
+        (globals, blocks)
     }
     pub fn place_phi_functions_and_generate_ssa(&mut self) {
-        let defs = self.def_variables();
+        let (globals, defs) = self.global_variables();
 
-        let mut dff = DominanceDataFlow::new(self);
-        self.dataflow(&mut dff);
-        let df = dff.infer(self).df.clone();
+        let dff = DominanceDataFlow::new(self);
+        let df = dff.df.clone();
 
         // INFO: A function to place phi functions down
         let mut place_phi_functions = || {
-            for (var, defs_of_var) in defs.iter() {
-                for defining_block in defs_of_var.iter() {
-                    for block in df[defining_block].iter() {
-                        let label = self.id_to_bb[defining_block]
-                            .borrow()
-                            .instrs
-                            .front()
-                            .unwrap()
-                            .clone();
-                        if self.id_to_bb[block]
-                            .borrow()
-                            .contains_phi_def(var, label.clone())
-                        {
-                            continue;
-                        } else {
-                            let mut block_mut_b = self.id_to_bb[block].borrow_mut();
+            for name in globals.clone() {
+                let mut work_list = VecDeque::<usize>::new();
 
-                            block_mut_b.insert_phi_def(var, label, &mut self.instruction_counter);
+                if !defs.contains_key(&name) {
+                    continue;
+                }
+                work_list.extend(defs.get(&name).unwrap().clone());
+
+                while !work_list.is_empty() {
+                    let block_id = work_list.pop_front().unwrap();
+
+                    for d in df[&block_id].iter() {
+                        let label = match self.id_to_bb[d].borrow().instrs.front().unwrap().clone()
+                        {
+                            InstructionOrLabel::Label(l) => InstructionOrLabel::Label(l),
+                            _ => continue,
+                        };
+                        if self.id_to_bb[d].borrow().contains_phi_def(&name) {
+                        } else {
+                            let mut block_mut_b = self.id_to_bb[d].borrow_mut();
+                            eprintln!("Constructing phi with  {name} from {label} at {}", d);
+                            block_mut_b.insert_phi_def(&name, &mut self.instruction_counter);
+                            work_list.push_back(*d);
                         }
                     }
                 }
@@ -299,6 +321,15 @@ impl CFG {
         let mut name_counter = BTreeMap::<String, usize>::new();
 
         // INFO: A function to rename operands in phi functions
+
+        let mut map_from_id_to_instrs = BTreeMap::<usize, LinkedList<InstructionOrLabel>>::new();
+        for (_, bb) in self.hm.iter() {
+            map_from_id_to_instrs
+                .entry(bb.borrow().id)
+                .or_insert(bb.borrow().instrs.clone());
+        }
+
+        let mut new_to_old_names = BTreeMap::<String, String>::new();
         let mut rename_phi_defs = |stack_of: BTreeMap<String, Vec<String>>| {
             for (_, bb) in self.hm.iter() {
                 if bb.borrow().func.is_none() {
@@ -309,10 +340,18 @@ impl CFG {
                     &dff.domtree,
                     &mut name_counter,
                     &self.id_to_bb,
+                    &mut map_from_id_to_instrs,
+                    &globals,
+                    &mut new_to_old_names,
                 )
             }
         };
         rename_phi_defs(stack_of);
+
+        for (_, bb) in self.hm.iter_mut() {
+            let id = bb.borrow().id;
+            bb.borrow_mut().instrs = map_from_id_to_instrs.entry(id).or_default().clone();
+        }
     }
 
     pub fn analyze_loop(&mut self) {

@@ -4,7 +4,7 @@ use crate::{
 };
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, LinkedList},
+    collections::{BTreeMap, BTreeSet, LinkedList, VecDeque},
     hash::{Hash, Hasher},
     rc::Rc,
 };
@@ -101,103 +101,130 @@ impl BasicBlock {
             _ => "".to_string(),
         }
     }
+
+    fn new_name(
+        var: &String,
+        stack_of: &mut SSANameStack,
+        name_counter: &mut BTreeMap<String, usize>,
+        new_to_old_names: &mut BTreeMap<String, String>,
+    ) -> String {
+        let fresh = var.clone() + &name_counter.get(var).unwrap_or(&0).to_string();
+        *name_counter.entry(var.clone()).or_insert(0) += 1;
+
+        stack_of.entry(var.clone()).or_default().push(fresh.clone());
+
+        new_to_old_names.insert(fresh.clone(), var.clone());
+        fresh
+    }
     pub fn rename_phi_def(
-        &mut self,
+        &self,
         mut stack_of: SSANameStack,
         dom_tree: &DomTree,
         name_counter: &mut BTreeMap<String, usize>,
         id_to_bb: &IdToBbMap,
+        id_to_ins: &mut BTreeMap<usize, LinkedList<InstructionOrLabel>>,
+        globals: &BTreeSet<String>,
+        new_to_old_names: &mut BTreeMap<String, String>,
     ) {
-        //  stack[var] = [] # stack of names for each variable
-        //dom_tree[b] = list of children of block b in the dominator tree
-        //              i.e., blocks that are *immediately* dominated by b
-        //def rename(block):
-        //    remember the stack
-        //
-        //    for inst in block:
-        //        inst.args = [stack[arg].top for arg in inst.args]
-        //        fresh = fresh_name(inst.dest)
-        //        stack[inst.dest].push(fresh)
-        //        inst.dest = fresh
-        //    for succ in block.successors:
-        //        for phi in succ.phis:
-        //            v = phi.dest
-        //            update the arg in this phi corresponding to block to stack[v].top
-        //    for child in dom_tree[block]:
-        //        rename(child)
-        //
-        //    restore the stack by popping what we pushed
-        //
-        //eprintln!("Rename with SSA from {}", self.id);
-        for inst in self.instrs.iter_mut() {
+        // INFO: Rename phi function first
+        for inst in id_to_ins.entry(self.id).or_default().iter_mut() {
+            if let InstructionOrLabel::Instruction(i) = inst {
+                if i.is_phi() {
+                    if let Some(dest) = &mut i.dest {
+                        *dest = BasicBlock::new_name(
+                            dest,
+                            &mut stack_of,
+                            name_counter,
+                            new_to_old_names,
+                        );
+                    }
+                }
+            }
+        }
+
+        for inst in id_to_ins.entry(self.id).or_default().iter_mut() {
             // Rename arguments of the instruction
             if let InstructionOrLabel::Instruction(i) = inst {
+                if i.is_phi() {
+                    continue;
+                }
                 if let Some(args) = &mut i.args {
                     for arg in args.iter_mut() {
+                        //eprintln!("Before, arg = {}", arg);
                         *arg = stack_of
                             .entry(arg.clone())
                             .or_insert(vec![arg.clone()])
                             .last()
                             .unwrap()
                             .clone();
+                        if globals.contains(arg) {}
+                        //eprintln!("After, arg = {}", arg);
                     }
-                    if let Some(dest) = &mut i.dest {
-                        let fresh =
-                            dest.clone() + &name_counter.get(dest).unwrap_or(&0).to_string();
-                        *name_counter.entry(dest.clone()).or_insert(0) += 1;
-
-                        stack_of
-                            .entry(dest.clone())
-                            .or_default()
-                            .push(fresh.clone());
-
-                        eprintln!("Pushing the fresh name of {fresh} on the stack");
-
-                        //eprintln!("Renaming to {fresh}");
-                        *dest = fresh; // Update i.dest with the fresh name
+                }
+                if let Some(dest) = &mut i.dest {
+                    *dest =
+                        BasicBlock::new_name(dest, &mut stack_of, name_counter, new_to_old_names);
+                    if globals.contains(dest) {
+                        // Update i.dest with the fresh name
                     }
                 }
             }
         }
         for succ in self.successors.iter() {
-            for instr in succ.borrow_mut().instrs.iter_mut() {
+            for instr in id_to_ins.entry(succ.borrow().id).or_default().iter_mut() {
                 if let InstructionOrLabel::Instruction(i) = instr {
                     if i.is_phi() {
                         let v = &i.dest.clone().unwrap();
-                        if let Some(stack) = stack_of.get(v) {
-                            if let Some(top) = stack.last() {
-                                //eprintln!(
-                                //    "I am at {} with {:?}",
-                                //    self.id,
-                                //    self.instrs.front().unwrap()
-                                //);
-
-                                let label = self.get_label();
-                                i.rename_phi(v.to_string(), top.to_string(), label);
-                                // Update the phi argument for this block to the top of the stack
-                            }
+                        eprintln!("v: {v}");
+                        let v = if let Some(old_name) = new_to_old_names.get(v) {
+                            eprintln!(
+                                "Transformed name from name maps: {}",
+                                stack_of[old_name].last().unwrap()
+                            );
+                            stack_of[old_name].last().unwrap().clone()
+                        } else {
+                            eprintln!(
+                                "Transformed name from stack: {}",
+                                stack_of[v].last().unwrap()
+                            );
+                            stack_of[v].last().unwrap().clone()
+                        };
+                        let label = self.get_label();
+                        if i.labels.is_none() {
+                            i.labels = Some(Vec::new());
                         }
+                        if i.args.is_none() {
+                            i.args = Some(Vec::new());
+                        }
+
+                        if let Some(args) = &mut i.args {
+                            args.push(v.clone());
+                            //args.push(stack_of[v].last().unwrap().clone());
+                        }
+                        if let Some(labels) = &mut i.labels {
+                            labels.push(label.clone());
+                        }
+
+                        eprintln!("Inserting {v} with {label} into {}", succ.borrow().id);
                     }
                 }
             }
         }
         for (a, b) in dom_tree.iter() {
             if *b == self.id && b != a {
-                id_to_bb[a].borrow_mut().rename_phi_def(
+                id_to_bb[a].borrow().rename_phi_def(
                     stack_of.clone(),
                     dom_tree,
                     name_counter,
                     id_to_bb,
+                    id_to_ins,
+                    globals,
+                    new_to_old_names,
                 )
             }
         }
     }
-    pub fn insert_phi_def(
-        &mut self,
-        def: &String,
-        label: InstructionOrLabel,
-        instruction_counter: &mut usize,
-    ) {
+    pub fn insert_phi_def(&mut self, def: &String, instruction_counter: &mut usize) {
         //eprintln!("Insert phi def into {}", self.id);
         for i in self.instrs.iter_mut() {
             match i {
@@ -209,8 +236,8 @@ impl BasicBlock {
                         if p.args.is_none() {
                             p.args = Some(Vec::new());
                         }
-                        p.labels.as_mut().unwrap().push(label.to_string());
-                        p.args.as_mut().unwrap().push(def.to_string());
+                        //p.labels.as_mut().unwrap().push(label.to_string());
+                        //p.args.as_mut().unwrap().push(def.to_string());
                         return;
                     }
                 }
@@ -233,10 +260,10 @@ impl BasicBlock {
             if p.args.is_none() {
                 p.args = Some(Vec::new());
             }
-            p.labels.as_mut().unwrap().push(label.to_string());
-            p.args.as_mut().unwrap().push(def.to_string());
+            //p.labels.as_mut().unwrap().push(label.to_string());
+            //p.args.as_mut().unwrap().push(def.to_string());
         }
-        self.insert_at(self.instrs.len() - 1, &p); // Insert the new element at the current iterator position
+        self.insert_at(1, &p); // Insert the new element at the current iterator position
     }
 
     // Contains empty phi def
@@ -253,14 +280,13 @@ impl BasicBlock {
         })
     }
     // Check if the current block contains any phi definition about def variable
-    pub fn contains_phi_def(&self, def: &String, label: InstructionOrLabel) -> bool {
+    pub fn contains_phi_def(&self, def: &String) -> bool {
         self.instrs.iter().any(|x| {
             if let InstructionOrLabel::Instruction(i) = x {
                 i.is_phi()
                     && i.dest.is_some()
                     && i.dest.clone().unwrap() == *def
                     && i.labels.is_some()
-                    && i.labels.clone().unwrap().contains(&label.to_string())
             } else {
                 false
             }

@@ -69,7 +69,8 @@ impl DominanceDataFlow {
 }
 
 impl DominanceDataFlow {
-    pub fn infer(&mut self, cfg: &CFG) -> &mut Self {
+    fn infer(&mut self, cfg: &CFG) -> &mut Self {
+        eprintln!("Dom set : {:?}", self.domset);
         self.infer_idom_set()
             .infer_dom_tree()
             .infer_dominance_frontier(cfg)
@@ -112,7 +113,7 @@ impl DominanceDataFlow {
     // dom_tree[a] = b means b immediately dominates a
     fn infer_dom_tree(&mut self) -> &mut Self {
         for (dom, idom) in self.idom.iter() {
-            eprintln!("Dom : {}, Idom : {}", dom, idom);
+            //eprintln!("Dom : {}, Idom : {}", dom, idom);
             let b = self.domtree.entry(*dom).or_insert(*idom);
             *b = *idom;
         }
@@ -136,13 +137,17 @@ impl DominanceDataFlow {
 
         for (_, node_n) in cfg.hm.iter() {
             if node_n.borrow().predecessors.len() > 1 {
+                eprintln!("In the node {}", node_n.borrow().id);
                 for pred in node_n.borrow().predecessors.iter() {
                     let mut runner = pred.borrow().id;
+                    eprintln!("Setting runner to be {runner}");
                     while !self.idom(runner, node_n.borrow().id) {
+                        eprintln!("Setting runner to be {runner}");
                         self.df
                             .entry(runner)
                             .or_default()
                             .insert(node_n.borrow().id);
+                        eprintln!("Inserting df of {runner} having {}", node_n.borrow().id);
                         if self.idom.contains_key(&runner) {
                             runner = self.idom[&runner];
                         } else {
@@ -153,7 +158,7 @@ impl DominanceDataFlow {
             }
         }
 
-        //eprintln!("Dominance frontier: {:?}", self.df);
+        eprintln!("Dominance frontier: {:?}", self.df);
         self
     }
 }
@@ -189,7 +194,7 @@ impl DataFlowAnalysis for DominanceDataFlow {
             *self.domset.entry(bb.id).or_default() = result.clone();
         }
 
-        eprintln!("Result {result:?}");
+        //eprintln!("Result {result:?}");
         match initial == result {
             true => TransferResult::NonChanged,
             false => TransferResult::Changed,
