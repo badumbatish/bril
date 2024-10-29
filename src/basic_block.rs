@@ -1,6 +1,6 @@
 use crate::{
     aliases::{BlockID, DomTree, IdToBbMap, SSANameStack},
-    bril_syntax::{Function, InstructionOrLabel, Label},
+    bril_syntax::{Function, Instruction, InstructionOrLabel, Label},
 };
 use std::{
     cell::RefCell,
@@ -116,6 +116,37 @@ impl BasicBlock {
 
         new_to_old_names.insert(fresh.clone(), var.clone());
         fresh
+    }
+    pub fn starts_with_label(&self, label: &String) -> bool {
+        if let Some(ilb) = self.instrs.back() {
+            match ilb {
+                InstructionOrLabel::Label(l) => l.label == *label,
+                _ => false,
+            }
+        } else {
+            false
+        }
+    }
+    pub fn ends_with_jmp(&self) -> bool {
+        if let Some(ilb) = self.instrs.back() {
+            match ilb {
+                InstructionOrLabel::Instruction(i) => i.is_jmp(),
+                _ => false,
+            }
+        } else {
+            false
+        }
+    }
+
+    pub fn ends_with_br(&self) -> bool {
+        if let Some(ilb) = self.instrs.back() {
+            match ilb {
+                InstructionOrLabel::Instruction(i) => i.is_br(),
+                _ => false,
+            }
+        } else {
+            false
+        }
     }
     pub fn rename_phi_def(
         &self,
@@ -306,16 +337,18 @@ impl BasicBlock {
         let _result = String::new();
         todo!()
     }
-    pub fn default(id: BlockID) -> BasicBlock {
-        Self {
+    pub fn default(id: &mut BlockID) -> BasicBlock {
+        let result = Self {
             func: None,
-            id,
+            id: *id,
             instrs: Default::default(),
             predecessors: Default::default(),
             successors: Default::default(),
-        }
+        };
+        *id += 1;
+        result
     }
-    pub fn default_with_label(id: BlockID, label: &String) -> BasicBlock {
+    pub fn default_with_label(id: &mut BlockID, label: &String) -> BasicBlock {
         let mut result = Self::default(id);
 
         result.push_back(&InstructionOrLabel::Label(Label {
@@ -323,38 +356,73 @@ impl BasicBlock {
         }));
         result
     }
+    fn preempt_function_arg(&mut self, instruction_counter: &mut usize) {
+        let mut argument_id_name = Vec::new();
+        if self.func.is_some() {
+            if self.func.as_ref().unwrap().args.is_none() {
+                return;
+            }
 
+            let func_mut = self.func.as_mut().unwrap();
+            let func_name = func_mut.name.clone();
+
+            for arg in func_mut.args.as_mut().unwrap().iter_mut() {
+                let arg_function_name = func_name.clone() + "_" + &arg.name;
+                argument_id_name.push((
+                    arg.name.clone(),
+                    arg_function_name.clone(),
+                    arg.fn_type.clone(),
+                ));
+                eprintln!("Old arg: {}, new arg: {}", arg.name, arg_function_name);
+                arg.name = arg_function_name.clone();
+            }
+
+            for (dest, src, _type) in argument_id_name.iter() {
+                self.push_back(&Instruction::new_id_instruction(
+                    &dest,
+                    &src,
+                    &_type,
+                    instruction_counter,
+                ));
+            }
+        }
+    }
     pub fn simple_basic_blocks_vec_from_function(
         f: &Function,
         block_id: &mut BlockID,
-    ) -> Vec<Rc<RefCell<BasicBlock>>> {
-        let mut result: Vec<Rc<RefCell<BasicBlock>>> = Vec::new();
+        instruction_counter: &mut usize,
+    ) -> LinkedList<Rc<RefCell<BasicBlock>>> {
+        let mut result: LinkedList<Rc<RefCell<BasicBlock>>> = LinkedList::new();
         let mut i = 0;
-        let entry_bb = BasicBlock::default(*block_id);
-        *block_id += 1;
+        let entry_bb = BasicBlock::default(block_id);
         let entry_bb_rcf: Rc<RefCell<BasicBlock>> = Rc::<RefCell<BasicBlock>>::new(entry_bb.into());
         let entry_header_name = "entry".to_string() + &f.name;
 
         entry_bb_rcf
             .borrow_mut()
             .instrs
-            .push_back(InstructionOrLabel::new_dummy_head(entry_header_name));
+            .push_back(InstructionOrLabel::new_dummy_head(
+                entry_header_name.clone(),
+                instruction_counter,
+            ));
         entry_bb_rcf.borrow_mut().func = Some(f.clone());
-        result.push(entry_bb_rcf);
-        // let mut last_instruction_before_construction = 0;
+        entry_bb_rcf
+            .borrow_mut()
+            .preempt_function_arg(instruction_counter);
+        result.push_back(entry_bb_rcf);
+
         let mut non_linear_before = false;
         while i < f.instrs.len() {
             // this match only happens if instruction is at start of function or after a branch
             // without label
-            let b: BasicBlock = BasicBlock::default(*block_id);
-            *block_id += 1;
+            let b: BasicBlock = BasicBlock::default(block_id);
             let bb: Rc<RefCell<BasicBlock>> = Rc::<RefCell<BasicBlock>>::new(b.into());
             if !non_linear_before {
                 bb.borrow_mut()
                     .predecessors
-                    .push(result.last().unwrap().clone());
+                    .push(result.back().unwrap().clone());
                 result
-                    .last_mut()
+                    .back_mut()
                     .unwrap()
                     .borrow_mut()
                     .successors
@@ -370,6 +438,7 @@ impl BasicBlock {
                 _ => {
                     bb_mut.instrs.push_back(InstructionOrLabel::new_dummy_head(
                         f.name.clone() + &block_id.to_string(),
+                        instruction_counter,
                     ));
                     bb_mut.instrs.push_back(f.instrs[i].clone());
                 }
@@ -404,9 +473,10 @@ impl BasicBlock {
                 i += 1;
             }
 
-            result.push(bb.clone());
+            result.push_back(bb.clone());
             i += 1;
         }
+
         result
     }
 }

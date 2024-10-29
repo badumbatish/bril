@@ -6,6 +6,7 @@ use crate::data_flow::DataFlowDirection;
 use crate::data_flow::DataFlowOrder;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::collections::LinkedList;
 
 type State = BTreeMap<String, BTreeSet<usize>>;
 pub struct AliasAnalysis {
@@ -173,7 +174,23 @@ impl DataFlowAnalysis for AliasAnalysis {
                 }
             }
         }
-        eprintln!("Actually removed in the end : {:?}", actually_removed)
+        eprintln!("Actually removed in the end : {:?}", actually_removed);
+
+        let mut kept_instruction = LinkedList::new();
+        for ilb in bb.instrs.clone() {
+            match ilb {
+                InstructionOrLabel::Label(_) => {
+                    kept_instruction.push_back(ilb.clone());
+                }
+                InstructionOrLabel::Instruction(ref instruction) => {
+                    if !actually_removed.contains(&instruction.instruction_id.unwrap()) {
+                        kept_instruction.push_back(ilb);
+                    }
+                }
+            }
+        }
+
+        bb.instrs = kept_instruction;
     }
 
     fn get_dataflow_direction(&self) -> crate::data_flow::DataFlowDirection {

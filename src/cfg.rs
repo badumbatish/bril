@@ -69,7 +69,11 @@ impl CFG {
         // Iterate to put basic blocks into the graph
         for func in p.functions.iter() {
             let simple_basic_blocks_vec_from_function =
-                BasicBlock::simple_basic_blocks_vec_from_function(func, &mut basic_block_counter);
+                BasicBlock::simple_basic_blocks_vec_from_function(
+                    func,
+                    &mut basic_block_counter,
+                    &mut instruction_counter,
+                );
             for bb in simple_basic_blocks_vec_from_function {
                 hm.insert(bb.borrow().instrs.front().unwrap().clone(), bb.clone());
                 id_to_bb.insert(bb.borrow().id, bb.clone());
@@ -373,9 +377,9 @@ impl CFG {
     pub fn analyze_loop(&mut self) {
         let mut loops = Loops::new(self);
 
-        for l in loops.loops.iter_mut() {
-            self.dataflow(l)
-        }
+        //for l in loops.loops.iter_mut() {
+        //    self.dataflow(l)
+        //}
         // TODO:
         //
         // for l in loops

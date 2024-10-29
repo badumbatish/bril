@@ -58,7 +58,7 @@ pub struct Label {
 pub struct FunctionArg {
     pub name: String,
     #[serde(rename = "type")]
-    pub fn_type: String,
+    pub fn_type: BrilType,
 }
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
@@ -71,7 +71,7 @@ impl InstructionOrLabel {
     pub fn new_phi(def: String, instruction_counter: &mut usize) -> Self {
         InstructionOrLabel::Instruction(Instruction::new_phi(def, instruction_counter))
     }
-    pub fn new_dummy_head(header_name: String) -> Self {
+    pub fn new_dummy_head(header_name: String, instruction_counter: &mut usize) -> Self {
         InstructionOrLabel::Label(Label { label: header_name })
     }
 }
@@ -119,6 +119,19 @@ pub struct Function {
     // pub other_fields: Value, // Store unknown fields here
 }
 
+impl Function {
+    pub fn starts_with(&self, label: &String) -> bool {
+        if let Some(ilb) = self.instrs.first() {
+            match ilb {
+                InstructionOrLabel::Instruction(_) => false,
+                InstructionOrLabel::Label(l) => l.label == *label,
+            }
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Program {
     pub functions: Vec<Function>,
@@ -139,6 +152,28 @@ impl Instruction {
             instruction_id: Some(*instruction_counter),
             other_fields: Default::default(),
         };
+
+        *instruction_counter += 1;
+        result
+    }
+
+    pub fn new_id_instruction(
+        dest: &String,
+        src: &String,
+        _type: &BrilType,
+        instruction_counter: &mut usize,
+    ) -> InstructionOrLabel {
+        let result = InstructionOrLabel::Instruction(Self {
+            op: "id".to_string(),
+            dest: Some(dest.clone()),
+            args: vec![src.clone()].into(),
+            bril_type: Some(_type.clone()),
+            value: Default::default(),
+            funcs: Default::default(),
+            labels: Default::default(),
+            instruction_id: Some(*instruction_counter),
+            other_fields: Default::default(),
+        });
 
         *instruction_counter += 1;
         result
