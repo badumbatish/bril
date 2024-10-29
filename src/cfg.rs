@@ -317,5 +317,10 @@ impl CFG {
 
     pub fn analyze_loop(&mut self) {
         Loops::new(self);
+
+        // TODO
+        for l in loops {
+            cfg.dataflow(&mut, l);
+        }
     }
 }
