@@ -1,11 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, LinkedList, VecDeque};
 
 use crate::{
     aliases::{BbPtr, BlockID},
     basic_block::BasicBlock,
     bril_syntax::InstructionOrLabel,
     cfg::CFG,
-    data_flow::DataFlowAnalysis,
+    data_flow::{DataFlowAnalysis, TransferResult},
     dominance::DominanceDataFlow,
 };
 
@@ -87,7 +87,10 @@ impl Loop {
             _ => panic!("Would never happen"),
         };
 
-        let bb = BasicBlock::default_with_label(cfg.basic_block_counter, &(label + "_preheader"));
+        let internal_counter = cfg.basic_block_counter;
+        let bb =
+            BasicBlock::default_with_label(&mut cfg.basic_block_counter, &(label + "_preheader"));
+
         eprintln!("{:?}", bb.instrs);
         eprintln!("BB ptr has id {}", bb.id);
         let bb_ptr = BbPtr::new(bb.into());
@@ -95,7 +98,10 @@ impl Loop {
         // locate the header id
 
         let header_bb_ptr = cfg.id_to_bb.get(header_id).unwrap();
-
+        eprintln!(
+            "Current header is {:?}",
+            header_bb_ptr.borrow().instrs.front()
+        );
         // bbptr's successor is header id
         bb_ptr.borrow_mut().successors.push(header_bb_ptr.clone());
         //
@@ -139,7 +145,7 @@ impl Loop {
             bb_ptr.borrow_mut().instrs.front().unwrap().clone(),
             bb_ptr.clone(),
         );
-        cfg.id_to_bb.insert(cfg.basic_block_counter, bb_ptr.clone());
+        cfg.id_to_bb.insert(internal_counter, bb_ptr.clone());
 
         //let mut tail = self.instrs.split_off(position);
         //
@@ -157,7 +163,6 @@ impl Loop {
 
         cfg.bb_ptr_vec.append(&mut tail);
         eprintln!("Create a new block with id :  {}", cfg.basic_block_counter);
-        cfg.basic_block_counter += 1;
 
         eprintln!("After, hm has {}", cfg.hm.len());
         bb_ptr.clone()
@@ -223,33 +228,127 @@ impl Loop {
         loop_nodes
     }
 }
-
+impl Loop {
+    fn register_variable(&mut self, bb_id: BlockID, var: &String) -> bool {
+        if !self.defined_variables.contains(var) {
+            true
+        } else {
+            self.invariant_variable_maps
+                .entry(bb_id)
+                .or_default()
+                .contains(var)
+        }
+    }
+}
 impl DataFlowAnalysis for Loop {
     fn meet(&mut self, bb: &mut BasicBlock) {
-        // TODO: For all predecessor, union them
-        todo!()
+        // TODO: For all predecessor, union them with the current basic block's facts
+
+        let mut keys = BTreeSet::<usize>::new();
+        keys.insert(bb.id);
+        for pred in bb.predecessors.iter() {
+            keys.insert(pred.borrow().id);
+        }
+
+        *self.invariant_variable_maps.entry(bb.id).or_default() =
+            keys.iter().fold(BTreeSet::new(), |acc, &key| {
+                if let Some(set) = self.invariant_variable_maps.get(&key) {
+                    acc.union(set).cloned().collect()
+                } else {
+                    acc
+                }
+            });
     }
 
     fn transfer(&mut self, bb: &mut BasicBlock) -> crate::data_flow::TransferResult {
         //  A value (we are in SSA!) is loop invariant if either:
-
+        let clone_state = self
+            .invariant_variable_maps
+            .entry(bb.id)
+            .or_default()
+            .clone();
         // It is defined outside the loop
         // INFO: For this, check against self.defined_variable
-        //
+        for ilb in bb.instrs.iter() {
+            match ilb {
+                InstructionOrLabel::Instruction(i) => {
+                    let mut all_arg_invariant = true;
+                    if let Some(args) = &i.args {
+                        for arg in args.iter() {
+                            if self.register_variable(bb.id, arg) {
+                                self.invariant_variable_maps
+                                    .entry(bb.id)
+                                    .or_default()
+                                    .insert(arg.clone());
+                            } else {
+                                all_arg_invariant = false;
+                            }
+                        }
+                    }
+
+                    if all_arg_invariant || i.is_const() {
+                        if let Some(dest) = &i.dest {
+                            self.invariant_variable_maps
+                                .entry(bb.id)
+                                .or_default()
+                                .insert(dest.clone());
+                        }
+                    }
+                }
+
+                InstructionOrLabel::Label(_) => {}
+            }
+        }
         // It is defined inside the loop, and:
         // All arguments to the instruction are loop invariant
         // The instruction is deterministic
         // INFO: For this, if it is LICM, put it in invariant_variable_maps
 
-        todo!()
+        match clone_state
+            == self
+                .invariant_variable_maps
+                .entry(bb.id)
+                .or_default()
+                .clone()
+        {
+            true => TransferResult::NonChanged,
+            false => TransferResult::Changed,
+        }
     }
 
     fn transform(&mut self, bb: &mut BasicBlock) {
         // TODO: All the loop invariant code (in terms of definition), we move to preheader
+        //
+        let mut kept_instruction = LinkedList::<InstructionOrLabel>::new();
+        let var_map = self
+            .invariant_variable_maps
+            .entry(bb.id)
+            .or_default()
+            .clone();
+        for ilb in bb.instrs.iter() {
+            match ilb {
+                InstructionOrLabel::Instruction(i) => {
+                    if let Some(dest) = &i.dest {
+                        // if it is defined in the loop and it is loop invariant
+                        if self.defined_variables.contains(dest) && var_map.contains(dest) {
+                            self.preheader.borrow_mut().instrs.push_back(ilb.clone())
+                        } else {
+                            kept_instruction.push_back(ilb.clone())
+                        }
+                    } else {
+                        kept_instruction.push_back(ilb.clone())
+                    }
+                }
+
+                InstructionOrLabel::Label(_) => kept_instruction.push_back(ilb.clone()),
+            }
+        }
+
+        bb.instrs = kept_instruction;
     }
 
     fn get_dataflow_direction(&self) -> crate::data_flow::DataFlowDirection {
-        todo!()
+        panic!()
     }
 
     fn get_dataflow_order(&self) -> crate::data_flow::DataFlowOrder {
@@ -269,7 +368,10 @@ impl Loops {
                 Some(bbptr) => {
                     for succ in bbptr.borrow().successors.iter() {
                         let succ_id = &succ.borrow().id;
-                        if dominator_set.contains(succ_id) {
+                        if dominator_set.contains(succ_id)
+                            && (cfg.id_to_bb[succ_id].borrow().ends_with_br()
+                                || cfg.id_to_bb[succ_id].borrow().ends_with_br())
+                        {
                             eprintln!("I see a loop from block {} to block {}", succ_id, dominated);
                             loop_start_end
                                 .entry(*succ_id)
@@ -282,7 +384,7 @@ impl Loops {
             }
         }
 
-        let created_header = BTreeSet::<BlockID>::new();
+        let mut created_header = BTreeSet::<BlockID>::new();
 
         let mut loops = Vec::<Loop>::new();
 
@@ -296,6 +398,7 @@ impl Loops {
                     false => PreHeaderCreate::Create,
                     true => PreHeaderCreate::DontCreate,
                 };
+                created_header.insert(header_id);
 
                 loops.push(Loop::new_with_header_and_latch(
                     cfg, &header_id, &latch_id, precreate,
@@ -313,9 +416,5 @@ impl Loops {
         //}
         //
         Self { loops }
-    }
-
-    pub fn variable_in_a_loop(&self, _variable_name: String) -> bool {
-        todo!()
     }
 }

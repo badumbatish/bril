@@ -1,0 +1,24 @@
+extract = 'total_dyn_inst: (\d+)'
+benchmarks = '../benchmarks/**/*.bril'
+
+[runs.baseline]
+pipeline = [
+    "bril2json",
+    "brili -p {args}",
+]
+
+[runs.ssa]
+pipeline = [
+    "bril2json",
+    "../target/debug/ssa_construction",
+    "brili -p {args}",
+]
+
+[runs.licm]
+pipeline = [
+    "bril2json",
+    "../target/debug/licm",
+    "python3 ../src_py/passes/local_value_number.py",
+    "python3 ../src_py/passes/deadcode_elim.py",
+    "brili -p {args}",
+]
